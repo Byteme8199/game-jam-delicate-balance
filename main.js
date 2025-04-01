@@ -1,3 +1,5 @@
+import { entities } from './entities.js';
+
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth, // Set width to 100% of the window
@@ -28,8 +30,8 @@ let straightLineTimer = 0; // Timer to track straight-line movement
 let speedMultiplier = 1; // Speed multiplier, starts at 1a
 let collidableObjects; // Group for collidable objects
 let balanceMeter = 0; // Balance meter value
-let startingX = 100; // Example starting X position, 9560 comic store
-let startingY = 100; // Example starting Y position, 5841 comic store
+let startingX = 2156; // Example starting X position, 9560 comic store
+let startingY = 3289; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let hasCargo = true; // Whether the player has cargo
@@ -39,7 +41,7 @@ let score = 0; // Player's score
 let comics = 10; // Player starts with 10 comics
 let maxComics = 20; // Maximum number of comics
 let momentum = 0; // Player's forward momentum
-const maxMomentum = 300; // Maximum momentum
+const maxMomentum = 500; // Maximum momentum
 const momentumIncrease = 5; // Momentum increase per frame when pedaling
 const momentumDecrease = 15; // Momentum decrease per frame when braking
 const glideFriction = 5; // Friction applied when gliding
@@ -52,9 +54,12 @@ let balanceIndicator; // Graphics object for the balance indicator
 let balanceGradientTexture; // Texture for the balance gradient
 let comicCovers = []; // Array to store comic cover keys
 let mouseMoveTimer; // Timer to track mouse movement
+let goingBackward; // Flag to indicate if the player is moving backward
 const mouseHideDelay = 100; // Delay in milliseconds before hiding the cursor
 let lastInputTime = 0; // Tracks the last time input was detected
 const inputTimeout = 1000; // Timeout in milliseconds to stop momentum
+const worldBaseWidth = 1441; // Width of the world
+const worldBaseHeight = 821; // Height of the world
 
 const globalScale = 10;
 
@@ -89,14 +94,16 @@ function preload() {
 
 function create() {
     // Add the background image and set it to cover the entire map
-    const background = this.add.image(0, 0, 'background').setOrigin(0, 0);
+    const mapContainer = this.add.container(0, 0);
 
-    // Scale the background
+    // Add the background image (not transparent)
+    const background = this.add.image(0, 0, 'background').setOrigin(0, 0);
     background.setScale(globalScale);
+    mapContainer.add(background);
 
     // Set world bounds to match the scaled background image size
-    const worldWidth = background.width * globalScale;
-    const worldHeight = background.height * globalScale;
+    const worldWidth = worldBaseWidth * globalScale;
+    const worldHeight = worldBaseHeight * globalScale;
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // Resize the camera bounds to match the world bounds
@@ -128,7 +135,7 @@ function create() {
     this.cameras.main.startFollow(player);
 
     // Ensure the background does not tile or wrap
-    background.setDisplaySize(worldWidth, worldHeight);
+    // background.setDisplaySize(worldWidth, worldHeight);
 
     // Create the cursors object for keyboard input
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -147,112 +154,56 @@ function create() {
     // Create a group for collidable objects
     collidableObjects = this.physics.add.staticGroup();
 
-    const entities = [
-        // Buildings
-        // { type: "building", coordinateX: 200, coordinateY: 150, width: 100, length: 120, description: "Office building near the intersection" },
-        // { type: "building", coordinateX: 500, coordinateY: 160, width: 120, length: 140, description: "Large commercial building with parking area" },
-        // { type: "building", coordinateX: 800, coordinateY: 180, width: 110, length: 130, description: "Retail store with glass frontage" },
-        // { type: "building", coordinateX: 1100, coordinateY: 200, width: 130, length: 150, description: "Apartment complex with multiple floors" },
-
-        // // Trees
-        // { type: "tree", coordinateX: 250, coordinateY: 300, width: 12, length: 12, description: "Large oak tree near sidewalk" },
-        // { type: "tree", coordinateX: 600, coordinateY: 320, width: 14, length: 14, description: "Small pine tree providing shade" },
-        // { type: "tree", coordinateX: 900, coordinateY: 350, width: 10, length: 10, description: "Maple tree in public space" },
-        // { type: "tree", coordinateX: 1150, coordinateY: 400, width: 15, length: 15, description: "Tall tree near office building" },
-
-        // // Cars
-        // { type: "car", coordinateX: 300, coordinateY: 220, width: 15, length: 25, description: "Red sedan parked near building" },
-        // { type: "car", coordinateX: 520, coordinateY: 230, width: 15, length: 25, description: "White SUV in parking lot" },
-        // { type: "car", coordinateX: 830, coordinateY: 250, width: 15, length: 25, description: "Black pickup truck near main road" },
-        // { type: "car", coordinateX: 1200, coordinateY: 270, width: 15, length: 25, description: "Silver compact car in public parking" },
-
-        // Roads
-        { type: "road", coordinateX: 0, coordinateY: 2977, width: 14437, length: 252, description: "North avenue running east to west" },
-        { type: "road", coordinateX: 0, coordinateY: 4500, width: 11552, length: 271, description: "South avenue running east to west" },
-
-        // { type: "road", coordinateX: 700, coordinateY: 100, width: 50, length: 621, description: "North-south cross street through downtown" },
-        // { type: "intersection", coordinateX: 500, coordinateY: 500, width: 100, length: 100, description: "Major downtown intersection with pedestrian crossings" },
-
-        // // Grassy Areas
-        // { type: "grassy area", coordinateX: 400, coordinateY: 400, width: 200, length: 250, description: "Public park with pathways and benches" },
-        // { type: "grassy area", coordinateX: 900, coordinateY: 420, width: 180, length: 200, description: "Green space near the commercial area" }
-    ];
+    // Add a debug text for displaying vertex coordinates
+    const vertexDebugText = this.add.text(10, 130, 'Vertex: None', {
+        font: '16px Arial',
+        fill: '#ff0000'
+    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
 
     // Dynamically create mapped objects
     entities.forEach(entity => {
-        let textureKey;
-        switch (entity.type) {
-            case "building":
-                textureKey = "building";
-                break;
-            case "tree":
-                textureKey = "tree";
-                break;
-            case "car":
-                textureKey = "car";
-                break;
-            case "road":
-            case "intersection":
-                textureKey = "road"; // Use a generic road texture
-                break;
-            case "grassy area":
-                textureKey = "grassyArea"; // Use a grassy area texture
-                break;
-            default:
-                console.warn(`Unknown entity type: ${entity.type}`);
-                return;
-        }
+        if (entity.vertices) {
+            const entityGraphics = this.add.graphics();
+            entityGraphics.fillStyle(0x808080, 1); // Gray color for entities for now
+            entityGraphics.beginPath();
 
-        if (entity.type === "road" || entity.type === "intersection" || entity.type === "grassy area") {
-            // Create a tiled sprite for roads, intersections, and grassy areas
-            const tiledSprite = this.add.tileSprite(
-                entity.coordinateX,
-                entity.coordinateY,
-                entity.width,
-                entity.length,
-                textureKey
-            );
-            tiledSprite.setOrigin(0.5, 0.5); // Center the tiled sprite
-            tiledSprite.setDepth(0); // Ensure it renders below other objects
-        } else {
-            // Create static objects for other types
-            const obj = collidableObjects.create(entity.coordinateX, entity.coordinateY, textureKey);
-            obj.setDisplaySize(entity.width, entity.length); // Set size
-            obj.description = entity.description; // Add description for debugging or interaction
-            obj.type = entity.type; // Store the type for collision handling
+            // Move to the first vertex
+            const firstVertex = entity.vertices[0];
+            entityGraphics.moveTo(firstVertex.x, firstVertex.y);
+
+            // Draw lines to the remaining vertices
+            entity.vertices.forEach(vertex => {
+                entityGraphics.lineTo(vertex.x, vertex.y);
+            });
+
+            // Close the path and fill the shape
+            entityGraphics.closePath();
+            entityGraphics.fillPath();
+
+            // Add the entity graphics to the map container
+            mapContainer.add(entityGraphics);
+
+            // Add red dots on each vertex
+            entity.vertices.forEach(vertex => {
+                const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
+                dot.setDepth(2); // Ensure the dot is above the entity
+                mapContainer.add(dot);
+            });
+
+            // Store the entity for manual collision handling
+            entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
+        }
+    });
+
+    // Set transparency for all objects except the background
+    mapContainer.iterate(child => {
+        if (child !== background) {
+            child.setAlpha(0.6); // Apply transparency to all children except the background
         }
     });
 
     // Set the player's depth to ensure it renders above roads, intersections, and grassy areas
     player.setDepth(1);
-
-    // Add collision detection between the player and collidable objects
-    this.physics.add.overlap(player, collidableObjects, (player, obj) => {
-        if (obj.type === "building" || obj.type === "car") {
-            // Hard collision: stop the player and reset balance
-            const slowSpeed = 20; // Define the reduced speed
-            const angle = player.rotation;
-            player.body.setVelocity(
-                Math.cos(angle) * slowSpeed,
-                Math.sin(angle) * slowSpeed
-            );
-
-            // Reduce momentum significantly upon collision
-            momentum = Math.max(momentum - 100, 0); // Reduce momentum by 100, but not below 0
-
-            // Reset the balance meter upon collision
-            balanceMeter = 50; // Set balance to a fixed value (e.g., 50) to simulate instability
-
-            // Reset the straight-line timer and speed multiplier
-            straightLineTimer = 0;
-            speedMultiplier = 1;
-        } else if (obj.type === "grassy area") {
-            // Soft collision: slow the player and affect balance
-            momentum *= 0.67; // Reduce momentum by 33%
-            balanceMeter *= 0.67; // Reduce balance effect by 33%
-        }
-        // Roads and intersections do not affect the player
-    });
 
     // Add text to display the balance meter (for debugging or UI purposes)
     this.balanceText = this.add.text(10, 10, 'Balance: 0', {
@@ -286,6 +237,12 @@ function create() {
 
     // Add text to display the cursor's coordinates
     this.cursorCoordsText = this.add.text(10, 110, 'Cursor: X: 0, Y: 0', {
+        font: '16px Arial',
+        fill: '#ffffff'
+    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+
+    // Add text to display the backward movement status
+    this.backwardText = this.add.text(10, 150, 'Going Backward: No', {
         font: '16px Arial',
         fill: '#ffffff'
     }).setScrollFactor(0); // Ensure the text stays fixed on the screen
@@ -380,6 +337,24 @@ function create() {
                 ease: 'Sine.easeInOut'
             });
         }
+
+        // Check if the cursor is near any vertex
+        let vertexFound = false;
+        entities.forEach(entity => {
+            if (entity.vertices) {
+                entity.vertices.forEach(vertex => {
+                    const distance = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, vertex.x, vertex.y);
+                    if (distance <= 10) { // If the cursor is within 10 pixels of the vertex
+                        vertexDebugText.setText(`Vertex: X: ${vertex.x}, Y: ${vertex.y}`);
+                        vertexFound = true;
+                    }
+                });
+            }
+        });
+
+        if (!vertexFound) {
+            vertexDebugText.setText('Vertex: None');
+        }
     });
 
     // Throw a projectile on mouse click
@@ -429,6 +404,21 @@ function create() {
         minimapHeight // Height
     );
     minimapBorder.setScrollFactor(0); // Ensure the border stays fixed on the screen
+
+    // Add a graphics object to visualize the player's collision shape
+    const playerCollisionGraphics = this.add.graphics();
+    playerCollisionGraphics.setDepth(2); // Ensure it renders above other objects
+
+    // Store the graphics object for later updates
+    player.collisionGraphics = playerCollisionGraphics;
+
+    // Define the player's collision shape as a thin diamond
+    player.collisionShape = [
+        { x: 0, y: -player.body.height / 4 }, // Top (narrower height)
+        { x: player.body.width / 1.5, y: 0 },    // Right (narrower width)
+        { x: 0, y: player.body.height / 4 }, // Bottom (narrower height)
+        { x: -player.body.width / 1.5, y: 0 }    // Left (narrower width)
+    ];
 }
 
 function update(time, delta) {
@@ -451,43 +441,55 @@ function update(time, delta) {
         momentum = 0;
     }
 
-    // Handle backward movement independently of momentum
-    if (this.cursors.down.isDown || this.wasd.down.isDown) {
-        // Reverse left and right controls when moving backward
-        if (this.cursors.left.isDown || this.wasd.left.isDown) {
-            player.rotation += rotationSpeed; // Right becomes left
-            balanceMeter += delta * 0.1; // Shift balance to the right (positive)
-        } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
-            player.rotation -= rotationSpeed; // Left becomes right
-            balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
-        }
-
-        // Move backward
-        const velocityX = Math.cos(player.rotation) * -backwardSpeed;
-        const velocityY = Math.sin(player.rotation) * -backwardSpeed;
-        player.body.setVelocity(velocityX, velocityY);
+    // Prevent movement if the player is off balance or in the fall down state
+    const isOffBalance = balanceMeter >= balanceThresholdRight || balanceMeter <= balanceThresholdLeft;
+    if (!canMoveForward || isOffBalance) {
+        player.body.setVelocity(0, 0); // Stop movement
     } else {
-        // Handle forward movement and momentum
-        if (momentum > 0) {
+        const forwardPressed = this.cursors.up.isDown || this.wasd.up.isDown;
+        const backwardPressed = this.cursors.down.isDown || this.wasd.down.isDown;
+
+        // Handle backward movement independently of momentum
+        if (backwardPressed && !forwardPressed) {
+            // Reset forward momentum when moving backward
+            momentum = 0;
+
+            // Reverse left and right controls when moving backward
             if (this.cursors.left.isDown || this.wasd.left.isDown) {
-                player.rotation -= rotationSpeed;
-                balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
-            } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
-                player.rotation += rotationSpeed;
+                player.rotation += rotationSpeed; // Right becomes left
                 balanceMeter += delta * 0.1; // Shift balance to the right (positive)
+            } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+                player.rotation -= rotationSpeed; // Left becomes right
+                balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
             }
 
-            // Apply momentum to the player's velocity
-            const velocityX = Math.cos(player.rotation) * momentum;
-            const velocityY = Math.sin(player.rotation) * momentum;
+            // Move backward
+            const velocityX = Math.cos(player.rotation) * -backwardSpeed;
+            const velocityY = Math.sin(player.rotation) * -backwardSpeed;
             player.body.setVelocity(velocityX, velocityY);
-        } else {
-            // Stop velocity when no movement keys are pressed
-            player.body.setVelocity(0, 0);
-        }
 
-        // Adjust momentum based on input
-        if (canMoveForward && (this.cursors.up.isDown || this.wasd.up.isDown)) {
+            goingBackward = true; // Set a flag to indicate backward movement
+        } else if (forwardPressed && !backwardPressed) {
+            // Handle forward movement and momentum
+            if (momentum > 0) {
+                if (this.cursors.left.isDown || this.wasd.left.isDown) {
+                    player.rotation -= rotationSpeed;
+                    balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
+                } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+                    player.rotation += rotationSpeed;
+                    balanceMeter += delta * 0.1; // Shift balance to the right (positive)
+                }
+
+                // Apply momentum to the player's velocity
+                const velocityX = Math.cos(player.rotation) * momentum;
+                const velocityY = Math.sin(player.rotation) * momentum;
+                player.body.setVelocity(velocityX, velocityY);
+            } else {
+                // Stop velocity when no movement keys are pressed
+                player.body.setVelocity(0, 0);
+            }
+
+            // Adjust momentum based on input
             momentum = Math.min(momentum + momentumIncrease, maxMomentum); // Increase momentum when pedaling
 
             // Correct balance more quickly when going straight and not turning
@@ -498,10 +500,16 @@ function update(time, delta) {
                     balanceMeter = Math.min(balanceMeter + delta * 0.2, 0); // Faster correction toward 0
                 }
             }
+
+            goingBackward = false; // Set a flag to indicate forward movement
         } else {
-            momentum = Math.max(momentum - glideFriction, 0); // Gradually decrease momentum when gliding
+            // Stop velocity when no movement keys are pressed or both are pressed
+            player.body.setVelocity(0, 0);
         }
     }
+
+    // Update backward movement text
+    this.backwardText.setText(`Going Backward: ${goingBackward ? 'Yes' : 'No'}`);
 
     // Regenerate balance quickly when stopped
     if (momentum === 0 && !(this.cursors.down.isDown || this.wasd.down.isDown)) {
@@ -513,7 +521,7 @@ function update(time, delta) {
     }
 
     // Check if the player falls down
-    if (balanceMeter >= balanceThresholdRight || balanceMeter <= balanceThresholdLeft) {
+    if (isOffBalance) {
         this.fallDown(); // Call fallDown with the correct context
     }
 
@@ -559,6 +567,91 @@ function update(time, delta) {
         const targetY = player.y + Math.sin(player.rotation) * 100;
         throwProjectile.call(this, targetX, targetY);
     }
+
+    // Handle manual collision detection with entities
+    entities.forEach(entity => {
+        if (entity.polygon) {
+            // Check collision between the player's collision shape and the entity
+            const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
+            if (checkPolygonCollision(rotatedShape, entity.polygon)) {
+                handleEntityCollision(entity);
+            }
+
+            // Check collision between projectiles and the entity
+            projectiles.getChildren().forEach(projectile => {
+                const projectileBounds = new Phaser.Geom.Rectangle(
+                    projectile.x - projectile.displayWidth / 2,
+                    projectile.y - projectile.displayHeight / 2,
+                    projectile.displayWidth,
+                    projectile.displayHeight
+                );
+
+                if (checkRectanglePolygonCollision(projectileBounds, entity.polygon) && entity.type !== 'road') {
+                    console.log(`Projectile collided with: ${entity.type}, Description: ${entity.description}`);
+                    projectile.destroy(); // Destroy the projectile
+                }
+            });
+        }
+    });
+
+    // Update the player's collision shape visualization
+    if (player.collisionGraphics) {
+        player.collisionGraphics.clear();
+        player.collisionGraphics.lineStyle(2, 0xff0000, 1); // Red outline
+
+        // Draw the thin diamond shape, rotated with the player
+        player.collisionGraphics.beginPath();
+        const shape = player.collisionShape;
+        const cosAngle = Math.cos(player.rotation);
+        const sinAngle = Math.sin(player.rotation);
+
+        const rotatedPoints = shape.map(point => ({
+            x: player.x + point.x * cosAngle - point.y * sinAngle,
+            y: player.y + point.x * sinAngle + point.y * cosAngle
+        }));
+
+        player.collisionGraphics.moveTo(rotatedPoints[0].x, rotatedPoints[0].y);
+        for (let i = 1; i < rotatedPoints.length; i++) {
+            player.collisionGraphics.lineTo(rotatedPoints[i].x, rotatedPoints[i].y);
+        }
+        player.collisionGraphics.closePath();
+        player.collisionGraphics.strokePath();
+    }
+}
+
+// Custom function to check collision between a rectangle and a polygon
+function checkRectanglePolygonCollision(rect, polygon) {
+    // Check if any corner of the rectangle is inside the polygon
+    const rectCorners = [
+        { x: rect.x, y: rect.y },
+        { x: rect.x + rect.width, y: rect.y },
+        { x: rect.x, y: rect.y + rect.height },
+        { x: rect.x + rect.width, y: rect.y + rect.height }
+    ];
+
+    for (const corner of rectCorners) {
+        if (Phaser.Geom.Polygon.Contains(polygon, corner.x, corner.y)) {
+            return true;
+        }
+    }
+
+    // Check if any edge of the polygon intersects with the rectangle
+    const polygonPoints = polygon.points;
+    for (let i = 0; i < polygonPoints.length; i++) {
+        const p1 = polygonPoints[i];
+        const p2 = polygonPoints[(i + 1) % polygonPoints.length];
+
+        if (
+            Phaser.Geom.Intersects.LineToRectangle(
+                new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y),
+                rect
+            )
+        ) {
+            return true;
+        }
+    }
+
+    return false; // No collision detected
 }
 
 function updateBalanceIndicator() {
@@ -719,4 +812,103 @@ function fallDown() {
         },
         loop: true
     });
+}
+
+function handleEntityCollision(entity) {
+    if (entity.type !== "road" && entity.type !== "tree") {
+        // Stop the player completely
+        player.body.setVelocity(0, 0); // Stop the player's movement
+        momentum = 0; // Reset momentum to 0 to stop movement
+
+        // Adjust the player's position based on the direction of movement
+        const adjustDistance = 10; // Distance to move the player away from the object
+        const angle = player.rotation;
+
+        // Determine the adjustment direction based on whether the player is going backward
+        const adjustmentFactor = goingBackward ? 1 : -1;
+
+        // Calculate the adjusted position
+        const adjustedX = player.x + Math.cos(angle) * adjustDistance * adjustmentFactor;
+        const adjustedY = player.y + Math.sin(angle) * adjustDistance * adjustmentFactor;
+
+        // Check for the nearest unoccupied space
+        let safeX = adjustedX;
+        let safeY = adjustedY;
+        const stepSize = 5; // Step size to search for unoccupied space
+        const maxSteps = 20; // Maximum number of steps to search
+
+        for (let i = 0; i < maxSteps; i++) {
+            const testX = adjustedX + Math.cos(angle) * stepSize * i * adjustmentFactor;
+            const testY = adjustedY + Math.sin(angle) * stepSize * i * adjustmentFactor;
+
+            // Check if the test position collides with any entity
+            const isColliding = entities.some(ent => {
+                if (ent.polygon) {
+                    const rotatedShape = getRotatedCollisionShape(player, testX, testY);
+                    return checkPolygonCollision(rotatedShape, ent.polygon);
+                }
+                return false;
+            });
+
+            if (!isColliding) {
+                safeX = testX;
+                safeY = testY;
+                break;
+            }
+        }
+
+        // Move the player to the nearest unoccupied space
+        player.setPosition(safeX, safeY);
+
+        // Reset the balance meter upon collision
+        balanceMeter = 0; // Set balance to a fixed value to simulate instability
+
+        // Reset the straight-line timer and speed multiplier
+        straightLineTimer = 0;
+        speedMultiplier = 1;
+    } else {
+        // Handle collision with roads or trees
+        if (entity.type === 'road') {
+            speedMultiplier = 1.5; // Increase speed on roads
+        }
+    }
+}
+
+function getRotatedCollisionShape(player, x, y) {
+    const cosAngle = Math.cos(player.rotation);
+    const sinAngle = Math.sin(player.rotation);
+
+    return player.collisionShape.map(point => ({
+        x: x + point.x * cosAngle - point.y * sinAngle,
+        y: y + point.x * sinAngle + point.y * cosAngle
+    }));
+}
+
+function checkPolygonCollision(polygon1, polygon2) {
+    // Check if any point of polygon1 is inside polygon2
+    for (const point of polygon1) {
+        if (Phaser.Geom.Polygon.Contains(polygon2, point.x, point.y)) {
+            return true;
+        }
+    }
+
+    // Check if any edge of polygon1 intersects with any edge of polygon2
+    for (let i = 0; i < polygon1.length; i++) {
+        const p1 = polygon1[i];
+        const p2 = polygon1[(i + 1) % polygon1.length];
+
+        for (let j = 0; j < polygon2.points.length; j++) {
+            const q1 = polygon2.points[j];
+            const q2 = polygon2.points[(j + 1) % polygon2.points.length];
+
+            if (Phaser.Geom.Intersects.LineToLine(
+                new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y),
+                new Phaser.Geom.Line(q1.x, q1.y, q2.x, q2.y)
+            )) {
+                return true;
+            }
+        }
+    }
+
+    return false; // No collision detected
 }
