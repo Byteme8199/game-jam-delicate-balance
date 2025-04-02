@@ -27,7 +27,6 @@ window.addEventListener('resize', () => {
 
 let player;
 let straightLineTimer = 0; // Timer to track straight-line movement
-let speedMultiplier = 1; // Speed multiplier, starts at 1a
 let collidableObjects; // Group for collidable objects
 let balanceMeter = 0; // Balance meter value
 let startingX = 2156; // Example starting X position, 9560 comic store
@@ -424,7 +423,9 @@ function create() {
 function update(time, delta) {
     const rotationSpeed = 0.05; // Adjust rotation speed
     const balanceRegenSpeed = 0.5; // Speed at which balance regenerates when stopped
-    const backwardSpeed = 100; // Speed for moving backward
+    const baseBackwardSpeed = 100; // Base speed for moving backward
+
+    const backwardSpeed = baseBackwardSpeed;
 
     // Check for input and update the last input time
     if (
@@ -436,24 +437,16 @@ function update(time, delta) {
         lastInputTime = time; // Update the last input time
     }
 
-    // Stop momentum if no input is detected for the timeout duration
-    if (time - lastInputTime > inputTimeout) {
-        momentum = 0;
-    }
-
     // Prevent movement if the player is off balance or in the fall down state
     const isOffBalance = balanceMeter >= balanceThresholdRight || balanceMeter <= balanceThresholdLeft;
     if (!canMoveForward || isOffBalance) {
         player.body.setVelocity(0, 0); // Stop movement
+        momentum = 0; // Reset momentum when off balance
     } else {
         const forwardPressed = this.cursors.up.isDown || this.wasd.up.isDown;
         const backwardPressed = this.cursors.down.isDown || this.wasd.down.isDown;
 
-        // Handle backward movement independently of momentum
-        if (backwardPressed && !forwardPressed) {
-            // Reset forward momentum when moving backward
-            momentum = 0;
-
+        if(goingBackward) {
             // Reverse left and right controls when moving backward
             if (this.cursors.left.isDown || this.wasd.left.isDown) {
                 player.rotation += rotationSpeed; // Right becomes left
@@ -462,6 +455,21 @@ function update(time, delta) {
                 player.rotation -= rotationSpeed; // Left becomes right
                 balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
             }
+        } else {
+            // Allow turning while moving
+            if (this.cursors.left.isDown || this.wasd.left.isDown) {
+                player.rotation -= rotationSpeed;
+                balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
+            } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+                player.rotation += rotationSpeed;
+                balanceMeter += delta * 0.1; // Shift balance to the right (positive)
+            }
+        }        
+
+        // Handle backward movement independently of momentum
+        if (backwardPressed && !forwardPressed) {
+            // Reset forward momentum when moving backward
+            momentum = 0;
 
             // Move backward
             const velocityX = Math.cos(player.rotation) * -backwardSpeed;
@@ -470,24 +478,11 @@ function update(time, delta) {
 
             goingBackward = true; // Set a flag to indicate backward movement
         } else if (forwardPressed && !backwardPressed) {
-            // Handle forward movement and momentum
-            if (momentum > 0) {
-                if (this.cursors.left.isDown || this.wasd.left.isDown) {
-                    player.rotation -= rotationSpeed;
-                    balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
-                } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
-                    player.rotation += rotationSpeed;
-                    balanceMeter += delta * 0.1; // Shift balance to the right (positive)
-                }
 
-                // Apply momentum to the player's velocity
-                const velocityX = Math.cos(player.rotation) * momentum;
-                const velocityY = Math.sin(player.rotation) * momentum;
-                player.body.setVelocity(velocityX, velocityY);
-            } else {
-                // Stop velocity when no movement keys are pressed
-                player.body.setVelocity(0, 0);
-            }
+            // Apply momentum to the player's velocity
+            const velocityX = Math.cos(player.rotation) * momentum;
+            const velocityY = Math.sin(player.rotation) * momentum;
+            player.body.setVelocity(velocityX, velocityY);
 
             // Adjust momentum based on input
             momentum = Math.min(momentum + momentumIncrease, maxMomentum); // Increase momentum when pedaling
@@ -503,8 +498,15 @@ function update(time, delta) {
 
             goingBackward = false; // Set a flag to indicate forward movement
         } else {
-            // Stop velocity when no movement keys are pressed or both are pressed
-            player.body.setVelocity(0, 0);
+            // Glide and slowly reduce momentum when no movement keys are pressed
+            if (momentum > 0) {
+                momentum = Math.max(momentum - glideFriction, 0); // Reduce momentum gradually
+                const velocityX = Math.cos(player.rotation) * momentum;
+                const velocityY = Math.sin(player.rotation) * momentum;
+                player.body.setVelocity(velocityX, velocityY);
+            } else {
+                player.body.setVelocity(0, 0); // Stop completely when momentum reaches 0
+            }
         }
     }
 
@@ -831,29 +833,34 @@ function handleEntityCollision(entity) {
         const adjustedX = player.x + Math.cos(angle) * adjustDistance * adjustmentFactor;
         const adjustedY = player.y + Math.sin(angle) * adjustDistance * adjustmentFactor;
 
-        // Check for the nearest unoccupied space
+        // Check for the nearest unoccupied space within a radius
         let safeX = adjustedX;
         let safeY = adjustedY;
-        const stepSize = 5; // Step size to search for unoccupied space
-        const maxSteps = 20; // Maximum number of steps to search
+        const searchRadius = 200; // Radius to search for unoccupied space
+        const stepAngle = Math.PI / 16; // Angle step for radial search
 
-        for (let i = 0; i < maxSteps; i++) {
-            const testX = adjustedX + Math.cos(angle) * stepSize * i * adjustmentFactor;
-            const testY = adjustedY + Math.sin(angle) * stepSize * i * adjustmentFactor;
+        for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
+            for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
+                const testX = adjustedX + r * Math.cos(theta);
+                const testY = adjustedY + r * Math.sin(theta);
 
-            // Check if the test position collides with any entity
-            const isColliding = entities.some(ent => {
-                if (ent.polygon) {
-                    const rotatedShape = getRotatedCollisionShape(player, testX, testY);
-                    return checkPolygonCollision(rotatedShape, ent.polygon);
+                // Check if the test position collides with any entity
+                const isColliding = entities.some(ent => {
+                    if (ent.polygon) {
+                        const rotatedShape = getRotatedCollisionShape(player, testX, testY);
+                        return checkPolygonCollision(rotatedShape, ent.polygon);
+                    }
+                    return false;
+                });
+
+                if (!isColliding) {
+                    safeX = testX;
+                    safeY = testY;
+                    break;
                 }
-                return false;
-            });
-
-            if (!isColliding) {
-                safeX = testX;
-                safeY = testY;
-                break;
+            }
+            if (safeX !== adjustedX || safeY !== adjustedY) {
+                break; // Exit the loop if a safe position is found
             }
         }
 
@@ -863,14 +870,8 @@ function handleEntityCollision(entity) {
         // Reset the balance meter upon collision
         balanceMeter = 0; // Set balance to a fixed value to simulate instability
 
-        // Reset the straight-line timer and speed multiplier
+        // Reset the straight-line timer
         straightLineTimer = 0;
-        speedMultiplier = 1;
-    } else {
-        // Handle collision with roads or trees
-        if (entity.type === 'road') {
-            speedMultiplier = 1.5; // Increase speed on roads
-        }
     }
 }
 
