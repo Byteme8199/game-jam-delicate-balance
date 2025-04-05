@@ -44,7 +44,7 @@ let score = 0; // Player's score
 let comics = 10; // Player starts with 10 comics
 let maxComics = 20; // Maximum number of comics
 let momentum = 0; // Player's forward momentum
-const maxMomentum = 500; // Maximum momentum
+const maxMomentum = 300; // Maximum momentum
 const momentumIncrease = 5; // Momentum increase per frame when pedaling
 const momentumDecrease = 15; // Momentum decrease per frame when braking
 const glideFriction = 5; // Friction applied when gliding
@@ -64,6 +64,9 @@ const inputTimeout = 1000; // Timeout in milliseconds to stop momentum
 const worldBaseWidth = 1441; // Width of the world
 const worldBaseHeight = 821; // Height of the world
 let debugMode = true; // Flag to enable debug mode
+let minimap; // Declare minimap globally
+let mapContainer; // Container for the map elements
+
 
 const globalScale = 10;
 
@@ -100,12 +103,12 @@ function preload() {
 
 function create() {
     // Add the background image and set it to cover the entire map
-    const mapContainer = this.add.container(0, 0);
+    this.mapContainer = this.add.container(0, 0);
 
     // Add the background image (not transparent)
-    const background = this.add.image(0, 0, 'background').setOrigin(0, 0);
-    background.setScale(globalScale);
-    mapContainer.add(background);
+    this.background = this.add.image(0, 0, 'background').setOrigin(0, 0);
+    this.background.setScale(globalScale);
+    this.mapContainer.add(this.background);
 
     // Set world bounds to match the scaled background image size
     const worldWidth = worldBaseWidth * globalScale;
@@ -157,19 +160,16 @@ function create() {
     // Add a key listener for the spacebar
     this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    // Add a key listener for the Tilde key to toggle debugMode
-    this.input.keyboard.on('keydown-`', () => {
+    // Add a key listener for the ENTER key to toggle debugMode
+    this.input.keyboard.on('keydown-ENTER', () => {
         debugMode = !debugMode; // Toggle debugMode
+        console.log(`Debug mode: ${debugMode ? 'ON' : 'OFF'}`); // Log the current state
+        this.textContainer.setVisible(debugMode);
     });
 
     // Create a group for collidable objects
     collidableObjects = this.physics.add.staticGroup();
 
-    // Add a debug text for displaying vertex coordinates
-    const vertexDebugText = this.add.text(10, 130, 'Vertex: None', {
-        font: '16px Arial',
-        fill: '#ff0000'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
 
     // Dynamically create mapped objects
     entities.forEach(entity => {
@@ -188,77 +188,91 @@ function create() {
 
             // Close the path and fill the shape
             entityGraphics.closePath();
-            
+            entityGraphics.fillStyle(0x808080, 1); // Gray color for entities
+            entityGraphics.fillPath();
+            this.mapContainer.add(entityGraphics);
 
             // Add red dots on each vertex
-            if(debugMode) {
-                // Add the entity graphics to the map container
-                entityGraphics.fillStyle(0x808080, 1); // Gray color for entities for now
-                entityGraphics.fillPath();
-                mapContainer.add(entityGraphics);
-                entity.vertices.forEach(vertex => {
-                    const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
-                    dot.setDepth(2); // Ensure the dot is above the entity
-                    mapContainer.add(dot);
-                });
-            }
+            const dots = [];
+            entity.vertices.forEach(vertex => {
+                const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
+                dot.setDepth(2); // Ensure the dot is above the entity
+                this.mapContainer.add(dot);
+                dots.push(dot);
+            });
+
+            // Store the graphics and dots for toggling visibility
+            entity.graphics = entityGraphics;
+            entity.dots = dots;
 
             // Store the entity for manual collision handling
             entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
         }
     });
 
-    // Set transparency for all objects except the background
-    mapContainer.iterate(child => {
-        if (child !== background) {
-            child.setAlpha(0.6); // Apply transparency to all children except the background
-        }
-    });
-
     // Set the player's depth to ensure it renders above roads, intersections, and grassy areas
     player.setDepth(1);
 
+    // Create a container for all the top-left text
+    const textContainer = this.add.container(10, 10).setScrollFactor(0);
+
     // Add text to display the balance meter (for debugging or UI purposes)
-    this.balanceText = this.add.text(10, 10, 'Balance: 0', {
+    this.balanceText = this.add.text(0, 0, 'Balance: 0', {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.balanceText);
 
     // Add text to display the player's coordinates
-    this.coordsText = this.add.text(10, 30, 'X: 0, Y: 0', {
+    this.coordsText = this.add.text(0, 20, 'X: 0, Y: 0', {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.coordsText);
 
     // Add text to display the player's score
-    this.scoreText = this.add.text(10, 50, 'Score: 0', {
+    this.scoreText = this.add.text(0, 40, 'Score: 0', {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.scoreText);
 
     // Add text to display the player's comic count
-    this.comicsText = this.add.text(10, 70, `Comics: ${comics}`, {
+    this.comicsText = this.add.text(0, 60, `Comics: ${comics}`, {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.comicsText);
 
     // Add text to display debug information for the hovered object
-    this.hoveredObjectText = this.add.text(10, 90, 'Hovered Object: None', {
+    this.hoveredObjectText = this.add.text(0, 80, 'Hovered Object: None', {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.hoveredObjectText);
 
     // Add text to display the cursor's coordinates
-    this.cursorCoordsText = this.add.text(10, 110, 'Cursor: X: 0, Y: 0', {
+    this.cursorCoordsText = this.add.text(0, 100, 'Cursor: X: 0, Y: 0', {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.cursorCoordsText);
 
     // Add text to display the backward movement status
-    this.backwardText = this.add.text(10, 150, 'Going Backward: No', {
+    this.backwardText = this.add.text(0, 140, 'Going Backward: No', {
         font: '16px Arial',
         fill: '#ffffff'
-    }).setScrollFactor(0); // Ensure the text stays fixed on the screen
+    });
+    textContainer.add(this.backwardText);
+
+    this.vertexDebugText = this.add.text(0, 120, 'Vertex: None', {
+        font: '16px Arial',
+        fill: '#ff0000'
+    });
+    textContainer.add(this.vertexDebugText);
+
+    // Store the text container for toggling visibility later
+    this.textContainer = textContainer;
 
     // Bind the setComics function to the scene
     this.setComics = setComics.bind(this);
@@ -358,7 +372,7 @@ function create() {
                 entity.vertices.forEach(vertex => {
                     const distance = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, vertex.x, vertex.y);
                     if (distance <= 10) { // If the cursor is within 10 pixels of the vertex
-                        vertexDebugText.setText(`Vertex: X: ${vertex.x}, Y: ${vertex.y}`);
+                        this.vertexDebugText.setText(`Vertex: X: ${vertex.x}, Y: ${vertex.y}`);
                         vertexFound = true;
                     }
                 });
@@ -366,7 +380,7 @@ function create() {
         });
 
         if (!vertexFound) {
-            vertexDebugText.setText('Vertex: None');
+            this.vertexDebugText.setText('Vertex: None');
         }
     });
 
@@ -421,9 +435,9 @@ function create() {
     this.fallDown = fallDown.bind(this);
 
     // Create a minimap camera
-    const minimapWidth = 200; // Width of the minimap
-    const minimapHeight = 150; // Height of the minimap
-    const minimap = this.cameras.add(
+    const minimapWidth = 150; // Width of the minimap
+    const minimapHeight = 100; // Height of the minimap
+    minimap = this.cameras.add(
         this.cameras.main.width - minimapWidth - 10, // X position (top-right corner)
         10, // Y position
         minimapWidth, // Width
@@ -436,6 +450,11 @@ function create() {
 
     // Apply a zoom level to the minimap to make it smaller
     minimap.setZoom(0.05);
+
+    // Ensure textContainer exists before ignoring it in the minimap
+    if (this.textContainer) {
+        minimap.ignore(this.textContainer);
+    }
 
     // Add a border around the minimap for better visibility
     const minimapBorder = this.add.graphics();
@@ -468,6 +487,18 @@ function create() {
 }
 
 function update(time, delta) {
+
+    // Set transparency for all objects except the background
+    this.mapContainer.iterate(child => {
+        if (child !== this.background) {
+            if(debugMode) {
+                child.setAlpha(0.6); // Apply transparency to all children except the background
+            } else {
+                child.setAlpha(0);  //Full opacity in debug mode 
+            }
+        }
+    });
+
     const rotationSpeed = 0.05; // Adjust rotation speed
     const balanceRegenSpeed = 0.5; // Speed at which balance regenerates when stopped
     const baseBackwardSpeed = 100; // Base speed for moving backward
@@ -678,6 +709,29 @@ function update(time, delta) {
         player.collisionGraphics.closePath();
         player.collisionGraphics.strokePath();
     }
+
+    // Update vertex debug text
+    let vertexFound = false;
+    entities.forEach(entity => {
+        if (entity.vertices) {
+            entity.vertices.forEach(vertex => {
+                const distance = Phaser.Math.Distance.Between(
+                    this.input.activePointer.worldX,
+                    this.input.activePointer.worldY,
+                    vertex.x,
+                    vertex.y
+                );
+                if (distance <= 10) { // If the cursor is within 10 pixels of the vertex
+                    this.vertexDebugText.setText(`Vertex: X: ${vertex.x}, Y: ${vertex.y}`);
+                    vertexFound = true;
+                }
+            });
+        }
+    });
+
+    if (!vertexFound) {
+        this.vertexDebugText.setText('Vertex: None');
+    }
 }
 
 // Custom function to check collision between a rectangle and a polygon
@@ -847,8 +901,8 @@ function fallDown() {
     // Reset balance
     balanceMeter = 0;
 
-    // Lose all comics
-    this.setComics(0); // Reset comics and update the display
+    // Lose a comic on falling over
+    this.setComics(comics - 1); 
 
     // Disable forward movement for 1 second
     canMoveForward = false;

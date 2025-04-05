@@ -36,3 +36,21 @@ body {
 
 }
 
+#scanlines {
+    position: absolute; /* Ensure it is positioned relative to the game area */
+    top: 0;
+    left: 0;
+    width: 100%; /* Cover the game area */
+    height: 100%; /* Cover the game area */
+    pointer-events: none; /* Allow clicks to pass through to the game */
+    z-index: 999; /* Ensure it is below the TV foreground but above the game canvas */
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.2), /* Dark line */
+        rgba(0, 0, 0, 0.2) 2px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(0, 0, 0, 0) 4px
+    );
+    mix-blend-mode: multiply; /* Blend the scanlines with the game canvas */
+}
+
