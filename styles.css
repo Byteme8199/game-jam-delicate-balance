@@ -6,12 +6,33 @@ body {
     align-items: center;
     justify-content: center;
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
+    background-color: #FFFFFF;
+    height: 100vh; /* Ensure the body takes up the full viewport height */
+    overflow: hidden; /* Prevent scrolling */
+    position: relative; /* Ensure child elements are positioned relative to the body */
 }
 
-#game-container {
-    width: 800px;
-    height: 600px;
-    border: 2px solid #000;
-    margin-top: 20px;
+#tv-foreground {
+    position: fixed; /* Ensure it stays on top and doesn't scroll */
+    top: 0;
+    left: 0;
+    width: 788px; /* Full width of the viewport */
+    height: 750px; /* Full height of the viewport */
+    background-image: url('./assets/tv_foreground.png'); /* Replace with your TV foreground image */
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    left: 50%;
+    transform: translate(-50%, 0%);
+    pointer-events: none; /* Allow clicks to pass through to the game */
+    z-index: 1000; /* Ensure it is above all other elements */
 }
+
+#game {
+    position: absolute; /* Ensure it does not interfere with the canvas */
+    width: 600px; /* Match the game canvas width */
+    height: 450px; /* Match the game canvas height */
+    top: 90px;
+
+}
+

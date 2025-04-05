@@ -1,9 +1,11 @@
+import MenuScene from './menu.js';
 import { entities } from './entities.js';
 
 const config = {
-    type: Phaser.AUTO,
-    width: window.innerWidth, // Set width to 100% of the window
-    height: window.innerHeight, // Set height to 100% of the window
+    type: Phaser.WEBGL,
+    width: 600, // Set fixed width
+    height: 450, // Set fixed height
+    parent: 'game', // ID of the HTML element to attach the game
     physics: {
         default: 'arcade',
         arcade: {
@@ -11,26 +13,28 @@ const config = {
             debug: false
         }
     },
-    pixelArt: true, // Enable pixel art scaling
-    scene: {
-        preload: preload,
-        create: create,
-        update: update
+    pixelArt: true,
+    scene: [MenuScene, { key: 'MainScene', preload, create, update }],
+    scale: {
+        mode: Phaser.Scale.NONE, // Disable automatic resizing
+        autoCenter: Phaser.Scale.CENTER_BOTH // Center the game canvas
+    },
+    render: {
+        powerPreference: 'high-performance',
+        antialias: false,
+        failIfMajorPerformanceCaveat: true,
+        transparent: true // Allow transparency for layering
     }
 };
 
 const game = new Phaser.Game(config);
 
-window.addEventListener('resize', () => {
-    game.scale.resize(window.innerWidth, window.innerHeight); // Adjust game size on window resize
-});
-
 let player;
 let straightLineTimer = 0; // Timer to track straight-line movement
 let collidableObjects; // Group for collidable objects
 let balanceMeter = 0; // Balance meter value
-let startingX = 2156; // Example starting X position, 9560 comic store
-let startingY = 3289; // Example starting Y position, 5841 comic store
+let startingX = 709; // Example starting X position, 9560 comic store
+let startingY = 4703; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let hasCargo = true; // Whether the player has cargo
@@ -59,8 +63,11 @@ let lastInputTime = 0; // Tracks the last time input was detected
 const inputTimeout = 1000; // Timeout in milliseconds to stop momentum
 const worldBaseWidth = 1441; // Width of the world
 const worldBaseHeight = 821; // Height of the world
+let debugMode = true; // Flag to enable debug mode
 
 const globalScale = 10;
+
+let coordinateArray = []; // Array to store coordinates
 
 function setComics(value) {
     comics = value;
@@ -109,7 +116,7 @@ function create() {
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
     // Add the player sprite
-    const playerSprite = this.add.sprite(0, 0, 'player').setScale(0.15); // Centered in the container
+    const playerSprite = this.add.sprite(0, 0, 'player'); // Centered in the container
 
     // Add the balance indicator image
     const balanceIndicatorImage = this.add.image(-50, 0, 'balanceIndicator'); // Positioned behind the player
@@ -150,6 +157,11 @@ function create() {
     // Add a key listener for the spacebar
     this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
+    // Add a key listener for the Tilde key to toggle debugMode
+    this.input.keyboard.on('keydown-`', () => {
+        debugMode = !debugMode; // Toggle debugMode
+    });
+
     // Create a group for collidable objects
     collidableObjects = this.physics.add.staticGroup();
 
@@ -163,7 +175,6 @@ function create() {
     entities.forEach(entity => {
         if (entity.vertices) {
             const entityGraphics = this.add.graphics();
-            entityGraphics.fillStyle(0x808080, 1); // Gray color for entities for now
             entityGraphics.beginPath();
 
             // Move to the first vertex
@@ -177,17 +188,20 @@ function create() {
 
             // Close the path and fill the shape
             entityGraphics.closePath();
-            entityGraphics.fillPath();
-
-            // Add the entity graphics to the map container
-            mapContainer.add(entityGraphics);
+            
 
             // Add red dots on each vertex
-            entity.vertices.forEach(vertex => {
-                const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
-                dot.setDepth(2); // Ensure the dot is above the entity
-                mapContainer.add(dot);
-            });
+            if(debugMode) {
+                // Add the entity graphics to the map container
+                entityGraphics.fillStyle(0x808080, 1); // Gray color for entities for now
+                entityGraphics.fillPath();
+                mapContainer.add(entityGraphics);
+                entity.vertices.forEach(vertex => {
+                    const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
+                    dot.setDepth(2); // Ensure the dot is above the entity
+                    mapContainer.add(dot);
+                });
+            }
 
             // Store the entity for manual collision handling
             entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
@@ -356,9 +370,39 @@ function create() {
         }
     });
 
-    // Throw a projectile on mouse click
+    // Copy cursor coordinates to clipboard on mouse click
     this.input.on('pointerdown', (pointer) => {
-        throwProjectile.call(this, pointer.worldX, pointer.worldY); // Bind `this` to the scene
+        const coordinates = `{ x: ${Math.floor(pointer.worldX)}, y: ${Math.floor(pointer.worldY)} }`;
+
+        if (this.input.keyboard.checkDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ALT))) {
+            // Add coordinates to the array if ALT is pressed
+            coordinateArray.push(coordinates);
+            console.log(`Added to array: ${coordinates}`);
+        } else {
+            // Throw a projectile on mouse click
+            throwProjectile.call(this, pointer.worldX, pointer.worldY); // Bind `this` to the scene
+        }
+    });
+
+    // Copy the array to the clipboard when ALT is released
+    this.input.keyboard.on('keyup-ALT', () => {
+        if (coordinateArray.length > 0) {
+            const arrayString = '{ type: "", vertices: [' + coordinateArray.join() + '] },';
+            const textarea = document.createElement('textarea');
+            textarea.value = arrayString;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                console.log(`Copied array to clipboard:\n${arrayString}`);
+            } catch (err) {
+                console.error('Failed to copy array to clipboard', err);
+            }
+            document.body.removeChild(textarea);
+
+            // Clear the array after copying
+            coordinateArray = [];
+        }
     });
 
     // Create the refill zone as a circle
@@ -418,6 +462,9 @@ function create() {
         { x: 0, y: player.body.height / 4 }, // Bottom (narrower height)
         { x: -player.body.width / 1.5, y: 0 }    // Left (narrower width)
     ];
+
+    // Disable the right-click browser menu
+    this.input.mouse.disableContextMenu();
 }
 
 function update(time, delta) {
@@ -570,13 +617,18 @@ function update(time, delta) {
         throwProjectile.call(this, targetX, targetY);
     }
 
+    let isCollidingWithTree = false;
+
     // Handle manual collision detection with entities
     entities.forEach(entity => {
         if (entity.polygon) {
             // Check collision between the player's collision shape and the entity
             const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
             if (checkPolygonCollision(rotatedShape, entity.polygon)) {
-                handleEntityCollision(entity);
+                handleEntityCollision.call(this, entity);
+                if (entity.type === "tree") {
+                    isCollidingWithTree = true;
+                }
             }
 
             // Check collision between projectiles and the entity
@@ -593,13 +645,19 @@ function update(time, delta) {
                     projectile.destroy(); // Destroy the projectile
                 }
             });
+
         }
     });
+
+    // Reset tint if not colliding with any tree
+    if (!isCollidingWithTree) {
+        player.sprite.clearTint();
+    }
 
     // Update the player's collision shape visualization
     if (player.collisionGraphics) {
         player.collisionGraphics.clear();
-        player.collisionGraphics.lineStyle(2, 0xff0000, 1); // Red outline
+        // player.collisionGraphics.lineStyle(2, 0xff0000, 1); // Red outline
 
         // Draw the thin diamond shape, rotated with the player
         player.collisionGraphics.beginPath();
@@ -616,6 +674,7 @@ function update(time, delta) {
         for (let i = 1; i < rotatedPoints.length; i++) {
             player.collisionGraphics.lineTo(rotatedPoints[i].x, rotatedPoints[i].y);
         }
+        player.collisionGraphics.setVisible(false); // Make the collision graphics invisible to the player
         player.collisionGraphics.closePath();
         player.collisionGraphics.strokePath();
     }
@@ -731,7 +790,7 @@ function throwProjectile(targetX, targetY) {
 
         // Animate the projectile to "arc" by scaling up and back down
         const distance = Phaser.Math.Distance.Between(player.x, player.y, targetCenter.x, targetCenter.y);
-        const halfwayPoint = distance / 2;
+        const halfwayPoint = distance / projectileSpeed * 1000;
 
         projectile.setScale(0.5); // Start at normal size
         this.tweens.add({
@@ -817,6 +876,46 @@ function fallDown() {
 }
 
 function handleEntityCollision(entity) {
+    if (entity.type === "tree") {
+        // Check how much of the player is inside the tree polygon
+        const playerBounds = player.sprite.getBounds(); // Use only the playerSprite graphic for bounds
+
+        const corners = [
+            { x: playerBounds.left, y: playerBounds.top },
+            { x: playerBounds.right, y: playerBounds.top },
+            { x: playerBounds.left, y: playerBounds.bottom },
+            { x: playerBounds.right, y: playerBounds.bottom }
+        ];
+
+        // Count the number of corners inside the tree polygon
+        const cornersInside = corners.filter(corner =>
+            Phaser.Geom.Polygon.Contains(entity.polygon, corner.x, corner.y)
+        ).length;
+
+        // Calculate the percentage of the player under the tree
+        const percentageUnderTree = cornersInside / corners.length;
+
+        // Apply a shadow tint based on the percentage
+        const shadowTint = Phaser.Display.Color.Interpolate.ColorWithColor(
+            { r: 255, g: 255, b: 255 }, // Normal color (no shadow)
+            { r: 0, g: 0, b: 0 },       // Full shadow color
+            1,                          // Range max
+            percentageUnderTree          // Current percentage
+        );
+
+        player.sprite.setTint(
+            Phaser.Display.Color.GetColor(shadowTint.r, shadowTint.g, shadowTint.b)
+        );
+    } else {
+        // Reset the player's sprite to its original appearance
+        player.sprite.clearTint();
+    }
+
+    // Ensure tint is cleared when no collision occurs
+    if (!entity || entity.type !== "tree") {
+        player.sprite.clearTint();
+    }
+
     if (entity.type !== "road" && entity.type !== "tree") {
         // Stop the player completely
         player.body.setVelocity(0, 0); // Stop the player's movement
