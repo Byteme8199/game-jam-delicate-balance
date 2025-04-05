@@ -13,17 +13,17 @@ export default class MenuScene extends Phaser.Scene {
 
         // Add menu options
         const startText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 50, 'Start', {
-            font: '32px Arial',
+            font: '24px PressStart2P',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
         const highScoreText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'High Score', {
-            font: '32px Arial',
+            font: '24px PressStart2P',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
         const creditsText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 50, 'Credits', {
-            font: '32px Arial',
+            font: '24px PressStart2P',
             fill: '#ffffff'
         }).setOrigin(0.5);
 

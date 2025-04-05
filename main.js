@@ -456,6 +456,37 @@ function create() {
         minimap.ignore(this.textContainer);
     }
 
+    // Ignore the normal character sprite. Replace with a large yellow arrow that rotates with the player
+    if (player) {
+        minimap.ignore(player);
+
+        const arrow = this.add.graphics();
+        arrow.fillStyle(0xffff00, 1); // Yellow color
+        arrow.lineStyle(2, 0x000000, 1); // Black outline
+        arrow.beginPath();
+        arrow.moveTo(0, -8); // Point of the arrow
+        arrow.lineTo(-6, 8); // Left side of the arrow
+        arrow.lineTo(6, 8); // Right side of the arrow
+        arrow.lineTo(0, -8); // Back to the point
+        arrow.closePath();
+        arrow.fillPath();
+        arrow.strokePath();
+
+        // Add the arrow to a container for minimap-specific elements
+        const minimapArrow = this.add.container(player.x, player.y, [arrow]);
+        minimapArrow.setScale(14); // Scale the arrow for visibility in the minimap
+        minimapArrow.setDepth(1); // Ensure it appears above other minimap elements
+
+        // Update the arrow's position and rotation to match the player
+        this.events.on('update', () => {
+            minimapArrow.setPosition(player.x, player.y);
+            minimapArrow.setRotation(player.rotation + Math.PI / 2); // Rotate the arrow to point in the direction of the player
+        });
+
+        // Ignore the arrow in the main camera but show it in the minimap
+        this.cameras.main.ignore(minimapArrow);
+    }
+
     // Add a border around the minimap for better visibility
     const minimapBorder = this.add.graphics();
     minimapBorder.lineStyle(2, 0xffffff, 1); // White border
@@ -484,6 +515,41 @@ function create() {
 
     // Disable the right-click browser menu
     this.input.mouse.disableContextMenu();
+
+    // Add a timer for the game
+    this.timeLeft = 180; // 3 minutes (180 seconds)
+    this.timerText = this.add.text(
+        this.cameras.main.width - 87, // Align with the minimap's X position
+        120, // Position right below the minimap
+        `Time Left: ${formatTime(this.timeLeft)}`, 
+        {
+            font: '10px PressStart2P', // Use the "Press Start 2P" font
+            fill: '#ffffff',
+            align: 'center'
+        }
+    ).setScrollFactor(0).setOrigin(0.5, 0); // Center horizontally below the minimap
+
+    this.time.addEvent({
+        delay: 1000, // Decrease time every second
+        callback: () => {
+            this.timeLeft--;
+            this.timerText.setText(`Time Left: ${formatTime(this.timeLeft)}`);
+            if (this.timeLeft <= 0) {
+                this.endGame(false); // End the game when the timer reaches zero
+            }
+        },
+        loop: true
+    });
+
+    // Add a function to end the game
+    this.endGame = (won) => {
+        this.scene.pause(); // Pause the game
+        const message = won ? 'You Win!' : 'Time\'s Up!';
+        this.add.text(this.scale.width / 2, this.scale.height / 2, message, {
+            font: '32px PressStart2P',
+            fill: won ? '#FFFFFF' : '#F0F0F0'
+        }).setOrigin(0.5).setScrollFactor(0);
+    };
 }
 
 function update(time, delta) {
@@ -1065,4 +1131,11 @@ function checkPolygonCollision(polygon1, polygon2) {
     }
 
     return false; // No collision detected
+}
+
+// Utility function to format time as MM:SS
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const secondsLeft = seconds % 60;
+    return `${minutes}:${secondsLeft.toString().padStart(2, '0')}`;
 }
