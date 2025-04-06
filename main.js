@@ -223,12 +223,43 @@ function create() {
     });
     textContainer.add(this.coordsText);
 
+    // Create a circular minimap camera
+    const minimapRadius = 60; // Reduced radius by 20% (previously 75)
+    minimap = this.cameras.add(
+        this.cameras.main.width - minimapRadius * 2 - 10, // X position (top-right corner)
+         10, // Y position
+        minimapRadius * 2, // Width
+        minimapRadius * 2 // Height
+    );
+
+    // Set the minimap to follow the player and show the entire world
+    minimap.setBounds(0, 0, this.physics.world.bounds.width, this.physics.world.bounds.height);
+    minimap.startFollow(player);
+
+    // Apply a zoom level to the minimap to make it smaller
+    minimap.setZoom(0.03);
+
+    // Add a circular mask to the minimap
+    const minimapMask = this.add.graphics();
+    minimapMask.fillStyle(0xffffff, 1);
+    minimapMask.fillCircle(
+        minimap.x + minimapRadius, // Center X
+        minimap.y + minimapRadius, // Center Y
+        minimapRadius // Radius
+    );
+    minimap.setMask(new Phaser.Display.Masks.GeometryMask(this, minimapMask));
+
     // Add text to display the player's score
-    this.scoreText = this.add.text(0, 40, 'Score: 0', {
-        font: '16px Arial',
-        fill: '#ffffff'
-    });
-    textContainer.add(this.scoreText); // Ensure it is added to the text container
+    this.scoreText = this.add.text(
+        minimap.x + minimap.width / 2, // Centered horizontally under the minimap
+        minimap.y + minimap.height + 10, // Positioned 10px below the minimap
+        'Score: 0', 
+        {
+            font: '16px Arial',
+            fill: '#ffffff'
+        }
+    ).setOrigin(0.5, 0); // Centered horizontally and aligned to the top
+    this.scoreText.setScrollFactor(0); // Ensure it stays fixed relative to the minimap
 
     // Add text to display the player's comic count
     this.comicsText = this.add.text(0, 60, `Comics: ${comics}`, {
@@ -434,32 +465,6 @@ function create() {
 
     // Bind the fallDown function to the scene
     this.fallDown = fallDown.bind(this);
-
-    // Create a circular minimap camera
-    const minimapRadius = 60; // Reduced radius by 20% (previously 75)
-    minimap = this.cameras.add(
-        this.cameras.main.width - minimapRadius * 2 - 10, // X position (top-right corner)
-         10, // Y position
-        minimapRadius * 2, // Width
-        minimapRadius * 2 // Height
-    );
-
-    // Set the minimap to follow the player and show the entire world
-    minimap.setBounds(0, 0, this.physics.world.bounds.width, this.physics.world.bounds.height);
-    minimap.startFollow(player);
-
-    // Apply a zoom level to the minimap to make it smaller
-    minimap.setZoom(0.03);
-
-    // Add a circular mask to the minimap
-    const minimapMask = this.add.graphics();
-    minimapMask.fillStyle(0xffffff, 1);
-    minimapMask.fillCircle(
-        minimap.x + minimapRadius, // Center X
-        minimap.y + minimapRadius, // Center Y
-        minimapRadius // Radius
-    );
-    minimap.setMask(new Phaser.Display.Masks.GeometryMask(this, minimapMask));
 
     // Ensure textContainer exists before ignoring it in the minimap
     if (this.textContainer) {
@@ -832,13 +837,24 @@ function create() {
 
         // Create the graphics for the person in the main camera
         const body = this.add.ellipse(0, 0, 20, 30, 0x00ff00); // Oval for the body
-        const head = this.add.circle(0, -20, 10, 0xffcc99); // Circle for the head
-        const personContainer = this.add.container(person.x, person.y, [body, head]);
+        const head = this.add.circle(0, 0, 10, 0xffcc99); // Circle for the head
+
+        // Add a text object for the exclamation mark or check mark
+        const statusText = this.add.text(0, -40, '!', {
+            font: '20px Arial',
+            fill: '#ff0000' // Red for exclamation mark
+        }).setOrigin(0.5);
+
+        const personContainer = this.add.container(person.x, person.y, [body, head, statusText]);
         this.physics.world.enable(personContainer); // Enable physics for the person
         personContainer.body.setCollideWorldBounds(true); // Prevent the person from leaving the world bounds
         personContainer.name = person.name; // Attach the name to the container for easy lookup
         personContainer.hasComic = false; // Track if the person has been given a comic
+        personContainer.statusText = statusText; // Store the status text for updates
         people.push(personContainer); // Add the person container to the people array
+
+        // Ignore the status text in the minimap
+        minimap.ignore(statusText);
 
         // Add a circle to represent the person on the minimap
         const minimapIndicator = this.add.graphics();
@@ -864,6 +880,9 @@ function create() {
             score += 10; // Award points to the player
             this.scoreText.setText(`Score: ${score}`); // Update the score display
 
+            // Increase the timer by 10 seconds
+            this.timeLeft = Math.min(this.timeLeft + 10, 180); // Cap the timer at 180 seconds
+
             // Update the minimap indicator to gray
             const personIndex = people.indexOf(person);
             if (personIndex !== -1) {
@@ -874,6 +893,10 @@ function create() {
                 minimapIndicator.fillCircle(0, 0, 5);
                 minimapIndicator.strokeCircle(0, 0, 5);
             }
+
+            // Update the status text to a check mark
+            person.statusText.setText('✓');
+            person.statusText.setStyle({ fill: '#00ff00' }); // Green for check mark
         }
 
         projectile.destroy(); // Ensure only the projectile is destroyed after collision
@@ -908,6 +931,10 @@ function create() {
                             minimapPeopleIndicators[index].lineStyle(2, 0x000000, 1); // Thin black border
                             minimapPeopleIndicators[index].fillCircle(0, 0, 5);
                             minimapPeopleIndicators[index].strokeCircle(0, 0, 5);
+
+                            // Update the status text to a check mark
+                            person.statusText.setText('✓');
+                            person.statusText.setStyle({ fill: '#00ff00' }); // Green for check mark
                         }
                     }
 
@@ -931,23 +958,26 @@ function create() {
     // Create an array to store the comic inventory sprites
     this.comicInventorySprites = [];
 
-    // Populate the inventory with up to 20 comics in a straight line with a "peacock tail" effect
+    // Populate the inventory with up to 20 comics in a rounded arc
     const totalWidth = this.cameras.main.width - 180; // Leave some padding on the sides
     const comicSpacing = totalWidth / (maxComics - 1); // Spacing between comics
     const baseHeight = 30; // Base height from the bottom of the screen
-    const heightVariation = 30; // Maximum height variation for the middle comics
-    const maxAngle = 30; // Maximum angle for the outermost comics
+    const arcHeight = 10; // Maximum height of the arc
 
     for (let i = 0; i < maxComics; i++) {
         const x = -totalWidth / 2 + i * comicSpacing; // Position comics evenly across the width
-        const y = -baseHeight + Math.abs(i - (maxComics - 1) / 2) * (heightVariation / ((maxComics - 1) / 2)); // Calculate height with "peacock tail" effect
+        const normalizedPosition = (i - (maxComics - 1) / 2) / ((maxComics - 1) / 2); // Normalize position to [-1, 1]
+        const y = -baseHeight + Math.pow(normalizedPosition, 2) * arcHeight; // Create a parabolic arc
 
-        const angle = (i - (maxComics - 1) / 2) * (maxAngle / ((maxComics - 1) / 2)); // Calculate angle based on position
+        const angle = normalizedPosition * 20; // Smoothly adjust the angle based on position
         const comicKey = Phaser.Utils.Array.GetRandom(comicCovers); // Randomly select a comic cover
-        const comicSprite = this.add.image(x, y, comicKey).setScale(1).setAngle(angle); // Scale to 1.2 and apply angle
+        const comicSprite = this.add.image(x, y, comicKey).setScale(1).setAngle(angle); // Scale to 1 and apply angle
         inventoryContainer.add(comicSprite);
         this.comicInventorySprites.push(comicSprite);
     }
+
+    // Ensure the inventoryContainer is shown on the minimap
+    minimap.ignore(inventoryContainer, false);
 
     // Update the inventory display when comics are used
     this.updateComicInventory = () => {
