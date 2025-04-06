@@ -932,17 +932,19 @@ function create() {
     this.comicInventorySprites = [];
 
     // Populate the inventory with up to 20 comics in a straight line with a "peacock tail" effect
-    const totalWidth = this.cameras.main.width - 40; // Leave some padding on the sides
+    const totalWidth = this.cameras.main.width - 180; // Leave some padding on the sides
     const comicSpacing = totalWidth / (maxComics - 1); // Spacing between comics
-    const baseHeight = 20; // Base height from the bottom of the screen
-    const heightVariation = 20; // Maximum height variation for the middle comics
+    const baseHeight = 30; // Base height from the bottom of the screen
+    const heightVariation = 30; // Maximum height variation for the middle comics
+    const maxAngle = 30; // Maximum angle for the outermost comics
 
     for (let i = 0; i < maxComics; i++) {
         const x = -totalWidth / 2 + i * comicSpacing; // Position comics evenly across the width
-        const y = -baseHeight - Math.abs(i - (maxComics - 1) / 2) * (heightVariation / ((maxComics - 1) / 2)); // Calculate height with "peacock tail" effect
+        const y = -baseHeight + Math.abs(i - (maxComics - 1) / 2) * (heightVariation / ((maxComics - 1) / 2)); // Calculate height with "peacock tail" effect
 
+        const angle = (i - (maxComics - 1) / 2) * (maxAngle / ((maxComics - 1) / 2)); // Calculate angle based on position
         const comicKey = Phaser.Utils.Array.GetRandom(comicCovers); // Randomly select a comic cover
-        const comicSprite = this.add.image(x, y, comicKey).setScale(1.2); // Scale to 1.2
+        const comicSprite = this.add.image(x, y, comicKey).setScale(1).setAngle(angle); // Scale to 1.2 and apply angle
         inventoryContainer.add(comicSprite);
         this.comicInventorySprites.push(comicSprite);
     }
@@ -950,7 +952,7 @@ function create() {
     // Update the inventory display when comics are used
     this.updateComicInventory = () => {
         this.comicInventorySprites.forEach((sprite, index) => {
-            sprite.setVisible(index >= maxComics - comics); // Show comics from right to left
+            sprite.setVisible(index < comics); // Show comics from right to left
         });
     };
 
