@@ -32,8 +32,7 @@ body {
     position: absolute; /* Ensure it does not interfere with the canvas */
     width: 600px; /* Match the game canvas width */
     height: 450px; /* Match the game canvas height */
-    top: 90px;
-
+    top: 86px;
 }
 
 #scanlines {

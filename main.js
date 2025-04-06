@@ -1,5 +1,7 @@
 import MenuScene from './menu.js';
+import DialogueScene from './dialogue.js'; // Import the new DialogueScene
 import { entities } from './entities.js';
+import { getRandomName } from './utils.js'; // Import utility for generating random names
 
 const config = {
     type: Phaser.WEBGL,
@@ -14,17 +16,7 @@ const config = {
         }
     },
     pixelArt: true,
-    scene: [MenuScene, { key: 'MainScene', preload, create, update }],
-    scale: {
-        mode: Phaser.Scale.NONE, // Disable automatic resizing
-        autoCenter: Phaser.Scale.CENTER_BOTH // Center the game canvas
-    },
-    render: {
-        powerPreference: 'high-performance',
-        antialias: false,
-        failIfMajorPerformanceCaveat: true,
-        transparent: true // Allow transparency for layering
-    }
+    scene: [MenuScene, DialogueScene, { key: 'MainScene', preload, create, update }],
 };
 
 const game = new Phaser.Game(config);
@@ -33,8 +25,8 @@ let player;
 let straightLineTimer = 0; // Timer to track straight-line movement
 let collidableObjects; // Group for collidable objects
 let balanceMeter = 0; // Balance meter value
-let startingX = 709; // Example starting X position, 9560 comic store
-let startingY = 4703; // Example starting Y position, 5841 comic store
+let startingX = 9560; // Example starting X position, 9560 comic store
+let startingY = 5841; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let hasCargo = true; // Whether the player has cargo
@@ -63,7 +55,7 @@ let lastInputTime = 0; // Tracks the last time input was detected
 const inputTimeout = 1000; // Timeout in milliseconds to stop momentum
 const worldBaseWidth = 1441; // Width of the world
 const worldBaseHeight = 821; // Height of the world
-let debugMode = true; // Flag to enable debug mode
+let debugMode = false; // Flag to enable debug mode, set to false by default
 let minimap; // Declare minimap globally
 let mapContainer; // Container for the map elements
 
@@ -84,12 +76,7 @@ function preload() {
     this.load.image('background', 'assets/background.png'); // Background image
 
     // Load textures for collidable objects
-    this.load.image('building', 'assets/building.png');
-    this.load.image('tree', 'assets/tree.png');
-    this.load.image('car', 'assets/car.png');
     this.load.image('balanceIndicator', 'assets/balanceIndicator.png');
-    this.load.image('road', 'assets/road.png');
-    this.load.image('grassyArea', 'assets/grassyArea.png');
 
     // Load multiple comic cover images
     this.load.image('comic1', 'assets/comic1.png');
@@ -165,11 +152,17 @@ function create() {
         debugMode = !debugMode; // Toggle debugMode
         console.log(`Debug mode: ${debugMode ? 'ON' : 'OFF'}`); // Log the current state
         this.textContainer.setVisible(debugMode);
+        this.scoreText.setVisible(true); // Always show the score text
     });
 
     // Create a group for collidable objects
     collidableObjects = this.physics.add.staticGroup();
 
+    // Ensure collidableObjects is initialized before accessing its children
+    if (!collidableObjects) {
+        console.error("collidableObjects is not initialized.");
+        return;
+    }
 
     // Dynamically create mapped objects
     entities.forEach(entity => {
@@ -235,7 +228,7 @@ function create() {
         font: '16px Arial',
         fill: '#ffffff'
     });
-    textContainer.add(this.scoreText);
+    textContainer.add(this.scoreText); // Ensure it is added to the text container
 
     // Add text to display the player's comic count
     this.comicsText = this.add.text(0, 60, `Comics: ${comics}`, {
@@ -273,12 +266,20 @@ function create() {
 
     // Store the text container for toggling visibility later
     this.textContainer = textContainer;
+    this.textContainer.setVisible(debugMode); // Show/hide other debug text
+    this.scoreText.setVisible(true); // Always show the score text
 
     // Bind the setComics function to the scene
     this.setComics = setComics.bind(this);
 
     // Create a group for projectiles
     projectiles = this.physics.add.group();
+
+    // Ensure projectiles is initialized before accessing its children
+    if (!projectiles) {
+        console.error("Projectiles group is not initialized.");
+        return;
+    }
 
     // Create a cursor as a small empty circle with a red border
     cursorIcon = this.add.graphics();
@@ -434,14 +435,13 @@ function create() {
     // Bind the fallDown function to the scene
     this.fallDown = fallDown.bind(this);
 
-    // Create a minimap camera
-    const minimapWidth = 150; // Width of the minimap
-    const minimapHeight = 100; // Height of the minimap
+    // Create a circular minimap camera
+    const minimapRadius = 60; // Reduced radius by 20% (previously 75)
     minimap = this.cameras.add(
-        this.cameras.main.width - minimapWidth - 10, // X position (top-right corner)
-        10, // Y position
-        minimapWidth, // Width
-        minimapHeight // Height
+        this.cameras.main.width - minimapRadius * 2 - 10, // X position (top-right corner)
+         10, // Y position
+        minimapRadius * 2, // Width
+        minimapRadius * 2 // Height
     );
 
     // Set the minimap to follow the player and show the entire world
@@ -449,7 +449,17 @@ function create() {
     minimap.startFollow(player);
 
     // Apply a zoom level to the minimap to make it smaller
-    minimap.setZoom(0.05);
+    minimap.setZoom(0.03);
+
+    // Add a circular mask to the minimap
+    const minimapMask = this.add.graphics();
+    minimapMask.fillStyle(0xffffff, 1);
+    minimapMask.fillCircle(
+        minimap.x + minimapRadius, // Center X
+        minimap.y + minimapRadius, // Center Y
+        minimapRadius // Radius
+    );
+    minimap.setMask(new Phaser.Display.Masks.GeometryMask(this, minimapMask));
 
     // Ensure textContainer exists before ignoring it in the minimap
     if (this.textContainer) {
@@ -474,7 +484,7 @@ function create() {
 
         // Add the arrow to a container for minimap-specific elements
         const minimapArrow = this.add.container(player.x, player.y, [arrow]);
-        minimapArrow.setScale(14); // Scale the arrow for visibility in the minimap
+        minimapArrow.setScale(30); // Scale the arrow for visibility in the minimap
         minimapArrow.setDepth(1); // Ensure it appears above other minimap elements
 
         // Update the arrow's position and rotation to match the player
@@ -487,14 +497,13 @@ function create() {
         this.cameras.main.ignore(minimapArrow);
     }
 
-    // Add a border around the minimap for better visibility
+    // Add a circular border around the minimap for better visibility
     const minimapBorder = this.add.graphics();
     minimapBorder.lineStyle(2, 0xffffff, 1); // White border
-    minimapBorder.strokeRect(
-        this.cameras.main.width - minimapWidth - 10, // X position
-        10, // Y position
-        minimapWidth, // Width
-        minimapHeight // Height
+    minimapBorder.strokeCircle(
+        minimap.x + minimapRadius, // Center X
+        minimap.y + minimapRadius, // Center Y
+        minimapRadius // Radius
     );
     minimapBorder.setScrollFactor(0); // Ensure the border stays fixed on the screen
 
@@ -518,22 +527,10 @@ function create() {
 
     // Add a timer for the game
     this.timeLeft = 180; // 3 minutes (180 seconds)
-    this.timerText = this.add.text(
-        this.cameras.main.width - 87, // Align with the minimap's X position
-        120, // Position right below the minimap
-        `Time Left: ${formatTime(this.timeLeft)}`, 
-        {
-            font: '10px PressStart2P', // Use the "Press Start 2P" font
-            fill: '#ffffff',
-            align: 'center'
-        }
-    ).setScrollFactor(0).setOrigin(0.5, 0); // Center horizontally below the minimap
-
     this.time.addEvent({
         delay: 1000, // Decrease time every second
         callback: () => {
             this.timeLeft--;
-            this.timerText.setText(`Time Left: ${formatTime(this.timeLeft)}`);
             if (this.timeLeft <= 0) {
                 this.endGame(false); // End the game when the timer reaches zero
             }
@@ -545,11 +542,381 @@ function create() {
     this.endGame = (won) => {
         this.scene.pause(); // Pause the game
         const message = won ? 'You Win!' : 'Time\'s Up!';
-        this.add.text(this.scale.width / 2, this.scale.height / 2, message, {
+        const finalScore = `Final Score: ${score}`;
+
+        // Display the end game message
+        this.add.text(this.scale.width / 2, this.scale.height / 2 - 40, message, {
             font: '32px PressStart2P',
-            fill: won ? '#FFFFFF' : '#F0F0F0'
-        }).setOrigin(0.5).setScrollFactor(0);
+            fill: won ? '#FFFFFF' : '#F0F0F0',
+            shadow: {
+                offsetX: 2,
+                offsetY: 2,
+                color: '#000000',
+                blur: 0,
+                stroke: true,
+                fill: true
+            }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(100); // Ensure the text is on the top layer
+
+        // Display the final score
+        this.add.text(this.scale.width / 2, this.scale.height / 2 + 10, finalScore, {
+            font: '20px PressStart2P',
+            fill: '#FFFFFF',
+            shadow: {
+                offsetX: 1,
+                offsetY: 1,
+                color: '#000000',
+                blur: 0,
+                stroke: true,
+                fill: true
+            }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
+
+        // Add a "Restart" button
+        const restartButton = this.add.text(this.scale.width / 2, this.scale.height / 2 + 60, 'Restart', {
+            font: '20px PressStart2P',
+            fill: '#FFFFFF',
+            shadow: {
+                offsetX: 2,
+                offsetY: 2,
+                color: '#000000',
+                blur: 0,
+                stroke: true,
+                fill: true
+            }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
+
+        // Add interactivity to the restart button
+        restartButton.setInteractive().on('pointerdown', () => {
+            console.log('Restart')
+            // Reset all variables to their initial defaults
+            score = 0;
+            comics = 10;
+            momentum = 0;
+            balanceMeter = 0;
+            this.timeLeft = 180;
+
+            // Clear all active tweens and timers to prevent freezing
+            this.tweens.killAll();
+            this.time.removeAllEvents();
+
+            // Transition to the dialogue screen
+            this.scene.stop('MainScene');
+            this.scene.start('DialogueScene');
+        });
     };
+
+    // Add a destination point
+    this.currentDestination = this.add.circle(
+        Phaser.Math.Between(startingX - 100, startingX + 100), // X position within 100px of the player
+        Phaser.Math.Between(startingY - 100, startingY + 100), // Y position within 100px of the player
+        20, 
+        0xff0000, 
+        1
+    ); // Red circle for the destination
+    this.physics.add.existing(this.currentDestination, true); // Make it a static physics object
+
+    // Add a pulsating effect to the destination point
+    this.tweens.add({
+        targets: this.currentDestination,
+        scale: { from: 1, to: 1.5 }, // Pulsate between normal size and 1.5x size
+        duration: 800, // Duration of the pulsation
+        yoyo: true, // Reverse the tween to create a pulsating effect
+        repeat: -1, // Repeat indefinitely
+        ease: 'Sine.easeInOut'
+    });
+
+    // Add a minimap indicator for the destination
+    const destinationIndicator = this.add.graphics();
+    destinationIndicator.fillStyle(0xff0000, 1); // Red color
+    destinationIndicator.fillCircle(0, 0, 5); // Small circle for the minimap indicator
+    const minimapDestination = this.add.container(this.currentDestination.x, this.currentDestination.y, [destinationIndicator]);
+    minimapDestination.setDepth(1); // Ensure it appears above other minimap elements
+    minimapDestination.setScale(30); // Scale the indicator for visibility in the minimap
+
+    // Update the minimap indicator's position to match the destination
+    this.events.on('update', () => {
+        const destinationX = this.currentDestination.x;
+        const destinationY = this.currentDestination.y;
+
+        const minimapBounds = minimap.worldView;
+        const isInsideMinimap = minimapBounds.contains(destinationX, destinationY);
+
+        if (isInsideMinimap) {
+            // If the destination is within the minimap bounds, position it normally
+            minimapDestination.setPosition(destinationX, destinationY);
+        } else {
+            // If the destination is outside the minimap bounds, position it closer to the inner edge
+            const angle = Phaser.Math.Angle.Between(
+                minimapBounds.centerX,
+                minimapBounds.centerY,
+                destinationX,
+                destinationY
+            );
+
+            const offset = 250; // Offset to keep the indicator closer to the inner edge
+            const halfWidth = minimapBounds.width / 2 - offset;
+            const halfHeight = minimapBounds.height / 2 - offset;
+
+            const edgeX = minimapBounds.centerX + Math.cos(angle) * halfWidth;
+            const edgeY = minimapBounds.centerY + Math.sin(angle) * halfHeight;
+
+            minimapDestination.setPosition(edgeX, edgeY);
+        }
+    });
+
+    // Ignore the minimap indicator in the main camera but show it in the minimap
+    this.cameras.main.ignore(minimapDestination);
+
+    // Add collision detection between the player and the destination
+    this.physics.add.overlap(player, this.currentDestination, () => {
+        const deliveryTime = 180 - this.timeLeft; // Calculate the time taken to deliver
+        const scoreIncrease = Math.max(50 - deliveryTime, 10); // Score increases more for faster deliveries, minimum 10 points
+        score += scoreIncrease; // Update the score
+        this.scoreText.setText(`Score: ${score}`); // Update the score display
+
+        // Increase the timer by 30 seconds
+        this.timeLeft = Math.min(this.timeLeft + 30, 180); // Cap the timer at 180 seconds
+        const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
+
+        // Update the progress bar segments
+        this.timerSegments.forEach((segment, index) => {
+            if (index < activeSegments) {
+                segment.setFillStyle(0x00ff00); // Green for active segments
+            } else {
+                segment.setFillStyle(0xff0000); // Red for empty segments
+            }
+        });
+
+        console.log('Comic delivered!'); // Placeholder for delivery logic
+
+        // Move the destination to a new random position
+        this.currentDestination.setPosition(
+            Phaser.Math.Between(100, this.physics.world.bounds.width - 100),
+            Phaser.Math.Between(100, this.physics.world.bounds.height - 100)
+        );
+    });
+
+    // Add a main map indicator for the destination
+    const mainMapIndicator = this.add.graphics();
+    mainMapIndicator.fillStyle(0xff0000, 1); // Red color
+    mainMapIndicator.fillCircle(0, 0, 15); // Increased size for better visibility
+    const mainMapDestination = this.add.container(this.currentDestination.x, this.currentDestination.y, [mainMapIndicator]);
+    mainMapDestination.setDepth(1); // Ensure it appears above other elements
+
+    // Update the main map indicator's position to stick to the visible camera bounds
+    this.events.on('update', () => {
+        const destinationX = this.currentDestination.x;
+        const destinationY = this.currentDestination.y;
+
+        const cameraBounds = this.cameras.main.worldView;
+
+        // Check if the destination is within the visible camera bounds
+        const isInsideCamera = cameraBounds.contains(destinationX, destinationY);
+
+        if (isInsideCamera) {
+            // If the destination is within the camera bounds, position it normally
+            mainMapDestination.setPosition(destinationX, destinationY);
+        } else {
+            // If the destination is outside the camera bounds, position it on the closest edge
+            const dx = destinationX - cameraBounds.centerX;
+            const dy = destinationY - cameraBounds.centerY;
+
+            // Calculate the scale factor to bring the point to the edge of the rectangular camera
+            const scaleX = cameraBounds.width / 2 / Math.abs(dx);
+            const scaleY = cameraBounds.height / 2 / Math.abs(dy);
+            const scale = Math.min(scaleX, scaleY) * 0.9; // Reduce by 10% to move closer to the player
+
+            // Calculate the clamped position
+            const clampedX = cameraBounds.centerX + dx * scale;
+            const clampedY = cameraBounds.centerY + dy * scale;
+
+            mainMapDestination.setPosition(clampedX, clampedY);
+        }
+    });
+
+    // Add a segmented progress bar for the timer
+    const progressBarWidth = this.cameras.main.width * 0.8; // 80% of the camera width
+    const progressBarHeight = 20; // Height of each segment
+    const segmentCount = 30; // Number of segments
+    const segmentSpacing = 2; // Spacing between segments
+    const segmentWidth = (progressBarWidth - (segmentCount - 1) * segmentSpacing) / segmentCount;
+
+    this.timerSegments = [];
+    const progressBarX = this.cameras.main.width * 0.1; // Centered horizontally (10% offset on each side)
+    const progressBarY = this.cameras.main.height * 0.95 - progressBarHeight; // 5% offset from the bottom
+
+    for (let i = 0; i < segmentCount; i++) {
+        const segment = this.add.rectangle(
+            progressBarX + i * (segmentWidth + segmentSpacing),
+            progressBarY,
+            segmentWidth,
+            progressBarHeight,
+            0x00ff00 // Green color for active segments
+        )
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0); // Ensure the progress bar stays fixed relative to the camera
+        this.timerSegments.push(segment);
+
+        // Ignore the timer segment in the minimap
+        minimap.ignore(segment);
+    }
+
+    // Initialize the timer
+    this.timeLeft = 180; // 3 minutes (180 seconds)
+    this.timePerSegment = this.timeLeft / segmentCount; // Time each segment represents
+
+    this.time.addEvent({
+        delay: 1000, // Decrease time every second
+        callback: () => {
+            this.timeLeft--;
+            const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
+
+            // Update the progress bar segments
+            this.timerSegments.forEach((segment, index) => {
+                if (index < activeSegments) {
+                    segment.setFillStyle(0x00ff00); // Green for active segments
+                } else {
+                    segment.setFillStyle(0xff0000); // Red for empty segments
+                }
+            });
+
+            if (this.timeLeft <= 0) {
+                this.endGame(false); // End the game when the timer reaches zero
+            }
+        },
+        loop: true
+    });
+
+    // Dynamically create 100 "People" objects
+    const people = [];
+    const minimapPeopleIndicators = []; // Array to store minimap indicators for people
+
+    for (let i = 0; i < 100; i++) {
+        let person;
+        let isColliding;
+
+        // Ensure the person is not generated inside another collidable object
+        do {
+            const x = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
+            const y = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
+
+            person = {
+                name: getRandomName(), // Assign a random human name
+                x,
+                y,
+                destination: {
+                    x: Phaser.Math.Between(100, this.physics.world.bounds.width - 100),
+                    y: Phaser.Math.Between(100, this.physics.world.bounds.height - 100)
+                },
+                hasComic: false // Track if the person has been given a comic
+            };
+
+            // Check for collision with existing entities
+            isColliding = entities.some(entity => {
+                if (entity.polygon) {
+                    return checkCirclePolygonCollision({ x: person.x, y: person.y, radius: 20 }, entity.polygon);
+                }
+                return false;
+            });
+        } while (isColliding);
+
+        // Add the person to the entities list
+        entities.push({
+            type: 'person',
+            vertices: [{ x: person.x - 10, y: person.y - 10 }, { x: person.x + 10, y: person.y - 10 }, { x: person.x + 10, y: person.y + 10 }, { x: person.x - 10, y: person.y + 10 }],
+            name: person.name,
+            destination: person.destination
+        });
+
+        // Create the graphics for the person in the main camera
+        const body = this.add.ellipse(0, 0, 20, 30, 0x00ff00); // Oval for the body
+        const head = this.add.circle(0, -20, 10, 0xffcc99); // Circle for the head
+        const personContainer = this.add.container(person.x, person.y, [body, head]);
+        this.physics.world.enable(personContainer); // Enable physics for the person
+        personContainer.body.setCollideWorldBounds(true); // Prevent the person from leaving the world bounds
+        personContainer.name = person.name; // Attach the name to the container for easy lookup
+        personContainer.hasComic = false; // Track if the person has been given a comic
+        people.push(personContainer); // Add the person container to the people array
+
+        // Add a circle to represent the person on the minimap
+        const minimapIndicator = this.add.graphics();
+        minimapIndicator.fillStyle(0x00ff00, 1); // Green for people who need comics
+        minimapIndicator.lineStyle(2, 0x000000, 1); // Thin black border
+        minimapIndicator.fillCircle(0, 0, 5); // Circle with radius 5
+        minimapIndicator.strokeCircle(0, 0, 5); // Add the border
+        minimapIndicator.setPosition(person.x, person.y);
+        minimapIndicator.setScale(15); // Scale up the minimap indicator for better visibility
+        minimapPeopleIndicators.push(minimapIndicator);
+
+        // Ignore the minimap indicator in the main camera but show it in the minimap
+        this.cameras.main.ignore(minimapIndicator);
+    }
+
+    // Add collision detection for people
+    this.physics.add.collider(people, collidableObjects);
+
+    // Add collision detection between projectiles and people
+    this.physics.add.overlap(projectiles, people, (person, projectile) => {
+        if (!person.hasComic) {
+            person.hasComic = true; // Mark the person as having received a comic
+            score += 10; // Award points to the player
+            this.scoreText.setText(`Score: ${score}`); // Update the score display
+
+            // Update the minimap indicator to gray
+            const personIndex = people.indexOf(person);
+            if (personIndex !== -1) {
+                const minimapIndicator = minimapPeopleIndicators[personIndex];
+                minimapIndicator.clear();
+                minimapIndicator.fillStyle(0x808080, 1); // Gray for people who have received comics
+                minimapIndicator.lineStyle(2, 0x000000, 1); // Thin black border
+                minimapIndicator.fillCircle(0, 0, 5);
+                minimapIndicator.strokeCircle(0, 0, 5);
+            }
+        }
+
+        projectile.destroy(); // Ensure only the projectile is destroyed after collision
+    });
+
+    // Update people movement toward their destinations
+    this.time.addEvent({
+        delay: 50, // Update every 50ms
+        callback: () => {
+            people.forEach((person, index) => {
+                // Find the corresponding entity in the entities list
+                const entity = entities.find(e => e.type === 'person' && e.name === person.name);
+                if (entity && entity.destination) {
+                    const target = entity.destination;
+                    const angle = Phaser.Math.Angle.Between(person.x, person.y, target.x, target.y);
+                    const speed = 10; // Movement speed
+
+                    // Ensure person.body exists before setting velocity
+                    if (person.body) {
+                        person.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+                    }
+
+                    // Stop moving if the person reaches the destination
+                    if (Phaser.Math.Distance.Between(person.x, person.y, target.x, target.y) < 5) {
+                        if (person.body) {
+                            person.body.setVelocity(0, 0);
+                        }
+                        if (!person.hasComic) {
+                            person.hasComic = true; // Mark the person as having received a comic
+                            minimapPeopleIndicators[index].clear();
+                            minimapPeopleIndicators[index].fillStyle(0x808080, 1); // Gray for people who have received comics
+                            minimapPeopleIndicators[index].lineStyle(2, 0x000000, 1); // Thin black border
+                            minimapPeopleIndicators[index].fillCircle(0, 0, 5);
+                            minimapPeopleIndicators[index].strokeCircle(0, 0, 5);
+                        }
+                    }
+
+                    // Update the minimap indicator's position to match the person's position
+                    minimapPeopleIndicators[index].setPosition(person.x, person.y);
+                }
+            });
+        },
+        loop: true
+    });
 }
 
 function update(time, delta) {
@@ -1131,6 +1498,26 @@ function checkPolygonCollision(polygon1, polygon2) {
     }
 
     return false; // No collision detected
+}
+
+// Custom function to check if a circle intersects with a polygon
+function checkCirclePolygonCollision(circle, polygon) {
+    // Check if the circle's center is inside the polygon
+    if (Phaser.Geom.Polygon.Contains(polygon, circle.x, circle.y)) {
+        return true;
+    }
+
+    // Check if any edge of the polygon intersects with the circle
+    const points = polygon.points;
+    for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        if (Phaser.Geom.Intersects.LineToCircle(new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y), circle)) {
+            return true;
+        }
+    }
+
+    return false; // No intersection detected
 }
 
 // Utility function to format time as MM:SS
