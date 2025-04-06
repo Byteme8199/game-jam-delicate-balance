@@ -33,7 +33,7 @@ let hasCargo = true; // Whether the player has cargo
 let projectiles; // Group for projectiles
 let cursorIcon; // Icon to indicate the mouse cursor position
 let score = 0; // Player's score
-let comics = 10; // Player starts with 10 comics
+let comics = 20; // Player starts with 10 comics
 let maxComics = 20; // Maximum number of comics
 let momentum = 0; // Player's forward momentum
 const maxMomentum = 300; // Maximum momentum
@@ -755,7 +755,8 @@ function create() {
             0x00ff00 // Green color for active segments
         )
         .setOrigin(0, 0.5)
-        .setScrollFactor(0); // Ensure the progress bar stays fixed relative to the camera
+        .setScrollFactor(0) // Ensure the progress bar stays fixed relative to the camera
+        .setDepth(2); // Set depth to ensure it appears in front of the comic inventory
         this.timerSegments.push(segment);
 
         // Ignore the timer segment in the minimap
@@ -917,6 +918,44 @@ function create() {
         },
         loop: true
     });
+
+    // Create a container for the comic inventory
+    const inventoryContainer = this.add.container(this.cameras.main.width / 2, this.cameras.main.height - 60).setScrollFactor(0);
+
+    // Add a background for the inventory
+    const inventoryBackground = this.add.graphics();
+    inventoryBackground.fillStyle(0x000000, 0.5); // Semi-transparent black
+    inventoryBackground.fillRect(-this.cameras.main.width / 2, -40, this.cameras.main.width, 80); // Full width
+    inventoryContainer.add(inventoryBackground);
+
+    // Create an array to store the comic inventory sprites
+    this.comicInventorySprites = [];
+
+    // Populate the inventory with up to 20 comics in a straight line with a "peacock tail" effect
+    const totalWidth = this.cameras.main.width - 40; // Leave some padding on the sides
+    const comicSpacing = totalWidth / (maxComics - 1); // Spacing between comics
+    const baseHeight = 20; // Base height from the bottom of the screen
+    const heightVariation = 20; // Maximum height variation for the middle comics
+
+    for (let i = 0; i < maxComics; i++) {
+        const x = -totalWidth / 2 + i * comicSpacing; // Position comics evenly across the width
+        const y = -baseHeight - Math.abs(i - (maxComics - 1) / 2) * (heightVariation / ((maxComics - 1) / 2)); // Calculate height with "peacock tail" effect
+
+        const comicKey = Phaser.Utils.Array.GetRandom(comicCovers); // Randomly select a comic cover
+        const comicSprite = this.add.image(x, y, comicKey).setScale(1.2); // Scale to 1.2
+        inventoryContainer.add(comicSprite);
+        this.comicInventorySprites.push(comicSprite);
+    }
+
+    // Update the inventory display when comics are used
+    this.updateComicInventory = () => {
+        this.comicInventorySprites.forEach((sprite, index) => {
+            sprite.setVisible(index >= maxComics - comics); // Show comics from right to left
+        });
+    };
+
+    // Initial update of the inventory
+    this.updateComicInventory();
 }
 
 function update(time, delta) {
@@ -1240,6 +1279,7 @@ function throwProjectile(targetX, targetY) {
     if (comics <= 0) return; // Do nothing if the player has no comics left
 
     this.setComics(comics - 1); // Reduce the comic count and update the display
+    this.updateComicInventory(); // Update the inventory display
 
     // Randomly select a comic cover
     const randomComic = Phaser.Utils.Array.GetRandom(comicCovers);
