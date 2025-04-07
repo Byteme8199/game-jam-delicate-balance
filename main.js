@@ -65,9 +65,12 @@ const globalScale = 10;
 let coordinateArray = []; // Array to store coordinates
 
 function setComics(value) {
-    comics = value;
+    comics = Phaser.Math.Clamp(value, 0, maxComics); // Ensure comics stay within valid bounds
     if (this.comicsText) {
         this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
+    }
+    if (this.updateComicInventory) {
+        this.updateComicInventory(); // Update the comic inventory display
     }
 }
 
@@ -871,17 +874,17 @@ function create() {
     }
 
     // Add collision detection for people
-    this.physics.add.collider(people, collidableObjects);
+    this.physics.add.collider(people, collidableObjects, (person, object) => {
+        // Handle collision between a person and a collidable object
+        console.log(`Collision detected between person: ${person.name} and object.`);
+    });
 
     // Add collision detection between projectiles and people
-    this.physics.add.overlap(projectiles, people, (person, projectile) => {
+    this.physics.add.overlap(projectiles, people, (projectile, person) => {
         if (!person.hasComic) {
             person.hasComic = true; // Mark the person as having received a comic
             score += 10; // Award points to the player
             this.scoreText.setText(`Score: ${score}`); // Update the score display
-
-            // Increase the timer by 10 seconds
-            this.timeLeft = Math.min(this.timeLeft + 10, 180); // Cap the timer at 180 seconds
 
             // Update the minimap indicator to gray
             const personIndex = people.indexOf(person);
@@ -899,7 +902,21 @@ function create() {
             person.statusText.setStyle({ fill: '#00ff00' }); // Green for check mark
         }
 
-        projectile.destroy(); // Ensure only the projectile is destroyed after collision
+        projectile.destroy(); // Destroy the projectile after collision
+    });
+
+    let lastPlayerPersonCollisionTime = 0; // Track the last collision time
+
+    // Add collision detection between the player and people
+    this.physics.add.overlap(player, people, (player, person) => {
+        const currentTime = this.time.now; // Get the current time
+        if (currentTime - lastPlayerPersonCollisionTime >= 3000) { // Check if 3 seconds have passed
+            lastPlayerPersonCollisionTime = currentTime; // Update the last collision time
+            if (!person.hasComic) {
+                console.log(`Player collided with person: ${person.name}`);
+                this.fallDown(); // Make the player fall down
+            }
+        }
     });
 
     // Update people movement toward their destinations
@@ -912,7 +929,7 @@ function create() {
                 if (entity && entity.destination) {
                     const target = entity.destination;
                     const angle = Phaser.Math.Angle.Between(person.x, person.y, target.x, target.y);
-                    const speed = 10; // Movement speed
+                    const speed = 20; // Movement speed
 
                     // Ensure person.body exists before setting velocity
                     if (person.body) {
@@ -1407,7 +1424,9 @@ function fallDown() {
     balanceMeter = 0;
 
     // Lose a comic on falling over
-    this.setComics(comics - 1); 
+    if (comics > 0) {
+        this.setComics(comics - 1); // Reduce the comic count and update the display
+    }
 
     // Disable forward movement for 1 second
     canMoveForward = false;
