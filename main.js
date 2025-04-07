@@ -22,7 +22,6 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
-let collidableObjects; // Group for collidable objects
 let balanceMeter = 0; // Balance meter value
 let startingX = 9560; // Example starting X position, 9560 comic store
 let startingY = 5841; // Example starting Y position, 5841 comic store
@@ -58,16 +57,19 @@ let coordinateArray = []; // Array to store coordinates
 let lastPlayerPersonCollisionTime = 0; // Track the last collision time globally
 let lastInputTime = 0; // Tracks the last time input was detected globally
 
+// Sets the number of comics the player has, ensuring it stays within valid bounds.
+// Updates the comic count display and inventory UI.
 function setComics(value) {
-    comics = Phaser.Math.Clamp(value, 0, maxComics); // Ensure comics stay within valid bounds
+    comics = Phaser.Math.Clamp(value, 0, maxComics);
     if (this.comicsText) {
-        this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
+        this.comicsText.setText(`Comics: ${comics}`);
     }
     if (this.updateComicInventory) {
-        this.updateComicInventory(); // Update the comic inventory display
+        this.updateComicInventory();
     }
 }
 
+// Preloads assets such as images for the player, background, and comic covers.
 function preload() {
     this.load.image('player', 'assets/player.png'); // Placeholder asset
     this.load.image('background', 'assets/background.png'); // Background image
@@ -85,6 +87,8 @@ function preload() {
     comicCovers = ['comic1', 'comic2', 'comic3', 'comic4'];
 }
 
+// Initializes the game world, player, UI elements, and entities.
+// Sets up input handling, minimap, and collision detection.
 function create() {
     // Add the background image and set it to cover the entire map
     this.mapContainer = this.add.container(0, 0);
@@ -151,15 +155,6 @@ function create() {
         this.textContainer.setVisible(debugMode);
         this.scoreText.setVisible(true); // Always show the score text
     });
-
-    // Create a group for collidable objects
-    collidableObjects = this.physics.add.staticGroup();
-
-    // Ensure collidableObjects is initialized before accessing its children
-    if (!collidableObjects) {
-        console.error("collidableObjects is not initialized.");
-        return;
-    }
 
     // Dynamically create mapped objects
     entities.forEach(entity => {
@@ -341,9 +336,11 @@ function create() {
         }, mouseHideDelay);
 
         // Check if the cursor is over an object
-        const hoveredObject = collidableObjects.getChildren().find(obj => {
-            const bounds = obj.getBounds();
-            return bounds.contains(pointer.worldX, pointer.worldY);
+        const hoveredObject = entities.find(entity => {
+            if (entity.polygon) {
+                return Phaser.Geom.Polygon.Contains(entity.polygon, pointer.worldX, pointer.worldY);
+            }
+            return false;
         });
 
         if (hoveredObject) {
@@ -355,9 +352,11 @@ function create() {
         }
 
         // Check if the cursor is over an object that needs comics
-        const hoveredComicObject = collidableObjects.getChildren().find(obj => {
-            const bounds = obj.getBounds();
-            return bounds.contains(pointer.worldX, pointer.worldY) && obj.needsComic;
+        const hoveredComicObject = entities.find(entity => {
+            if (entity.polygon && entity.needsComic) {
+                return Phaser.Geom.Polygon.Contains(entity.polygon, pointer.worldX, pointer.worldY);
+            }
+            return false;
         });
 
         if (hoveredComicObject) {
@@ -869,12 +868,6 @@ function create() {
         this.cameras.main.ignore(minimapIndicator);
     }
 
-    // Add collision detection for people
-    this.physics.add.collider(people, collidableObjects, (person, object) => {
-        // Handle collision between a person and a collidable object
-        console.log(`Collision detected between person: ${person.name} and object.`);
-    });
-
     // Add collision detection between projectiles and people
     this.physics.add.overlap(projectiles, people, (projectile, person) => {
         if (!person.hasComic) {
@@ -995,6 +988,8 @@ function create() {
     this.updateComicInventory();
 }
 
+// Updates the game state every frame, including player movement, balance, and collisions.
+// Handles interactions with entities and updates the UI.
 function update(time, delta) {
 
     // Set transparency for all objects except the background
@@ -1377,41 +1372,8 @@ function update(time, delta) {
     }
 }
 
-// Custom function to check collision between a rectangle and a polygon
-function checkRectanglePolygonCollision(rect, polygon) {
-    // Check if any corner of the rectangle is inside the polygon
-    const rectCorners = [
-        { x: rect.x, y: rect.y },
-        { x: rect.x + rect.width, y: rect.y },
-        { x: rect.x, y: rect.y + rect.height },
-        { x: rect.x + rect.width, y: rect.y + rect.height }
-    ];
-
-    for (const corner of rectCorners) {
-        if (Phaser.Geom.Polygon.Contains(polygon, corner.x, corner.y)) {
-            return true;
-        }
-    }
-
-    // Check if any edge of the polygon intersects with the rectangle
-    const polygonPoints = polygon.points;
-    for (let i = 0; i < polygonPoints.length; i++) {
-        const p1 = polygonPoints[i];
-        const p2 = polygonPoints[(i + 1) % polygonPoints.length];
-
-        if (
-            Phaser.Geom.Intersects.LineToRectangle(
-                new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y),
-                rect
-            )
-        ) {
-            return true;
-        }
-    }
-
-    return false; // No collision detected
-}
-
+// Updates the balance indicator graphics based on the player's balance meter.
+// Displays a marker to show the player's current balance state.
 function updateBalanceIndicator() {
     const barWidth = 25; // Width of the balance bar (matches the width of the balanceIndicator.png)
     const barHeight = 7; // Height of the balance bar
@@ -1446,6 +1408,8 @@ function updateBalanceIndicator() {
     balanceIndicator.strokePath();
 }
 
+// Throws a projectile (comic) in the direction of the target.
+// Reduces the player's comic count, updates the inventory, and handles collision logic.
 function throwProjectile(targetX, targetY) {
     if (comics <= 0) return; // Do nothing if the player has no comics left
 
@@ -1477,57 +1441,43 @@ function throwProjectile(targetX, targetY) {
     projectile.setAngularVelocity(spinSpeed);
 
     // Handle "perfect" throw logic
-    const targetObject = collidableObjects.getChildren().find(obj => {
-        const bounds = obj.getBounds();
-        return bounds.contains(targetX, targetY);
+
+    // Animate the projectile to "arc" by scaling up and back down
+    const distance = Phaser.Math.Distance.Between(player.x, player.y, targetX, targetY);
+    const halfwayPoint = distance / projectileSpeed * 1000;
+
+    projectile.setScale(0.5); // Start at normal size
+    this.tweens.add({
+        targets: projectile,
+        scale: 1.0, // Scale up to 2x size
+        duration: halfwayPoint / projectileSpeed * 1000, // Time to halfway point
+        yoyo: true, // Scale back down after halfway
+        ease: 'Quad.easeInOut'
     });
 
-    if (targetObject) {
-        const targetBounds = targetObject.getBounds();
-        const targetCenter = new Phaser.Math.Vector2(targetBounds.centerX, targetBounds.centerY);
+    // Reward the player with points and make the target object flash
+    this.physics.add.collider(projectile, targetX, targetY, (proj, obj) => {
+        proj.destroy(); // Destroy the projectile
 
-        // Animate the projectile to "arc" by scaling up and back down
-        const distance = Phaser.Math.Distance.Between(player.x, player.y, targetCenter.x, targetCenter.y);
-        const halfwayPoint = distance / projectileSpeed * 1000;
+        if (obj.needsComic) {
+            score += 10; // Reward points for a perfect throw
+            this.scoreText.setText(`Score: ${score}`); // Update score display
 
-        projectile.setScale(0.5); // Start at normal size
-        this.tweens.add({
-            targets: projectile,
-            scale: 1.0, // Scale up to 2x size
-            duration: halfwayPoint / projectileSpeed * 1000, // Time to halfway point
-            yoyo: true, // Scale back down after halfway
-            ease: 'Quad.easeInOut'
-        });
+            // Make the target object flash
+            this.tweens.add({
+                targets: obj,
+                alpha: 0,
+                duration: 100,
+                yoyo: true,
+                repeat: 3
+            });
 
-        // Reward the player with points and make the target object flash
-        this.physics.add.collider(projectile, targetObject, (proj, obj) => {
-            proj.destroy(); // Destroy the projectile
-
-            if (obj.needsComic) {
-                score += 10; // Reward points for a perfect throw
-                this.scoreText.setText(`Score: ${score}`); // Update score display
-
-                // Make the target object flash
-                this.tweens.add({
-                    targets: obj,
-                    alpha: 0,
-                    duration: 100,
-                    yoyo: true,
-                    repeat: 3
-                });
-
-                obj.needsComic = false; // Mark the object as no longer needing a comic
-            } else {
-                score -= 1; // Deduct a point for hitting an object that doesn't need a comic
-                this.scoreText.setText(`Score: ${score}`); // Update score display
-            }
-        });
-    } else {
-        // Destroy the projectile on collision with any object
-        this.physics.add.collider(projectile, collidableObjects, (proj, obj) => {
-            proj.destroy(); // Destroy the projectile
-        });
-    }
+            obj.needsComic = false; // Mark the object as no longer needing a comic
+        } else {
+            score -= 1; // Deduct a point for hitting an object that doesn't need a comic
+            this.scoreText.setText(`Score: ${score}`); // Update score display
+        }
+    });
 
     // Destroy the projectile if it goes out of bounds or after 3 seconds
     this.time.delayedCall(3000, () => {
@@ -1537,6 +1487,8 @@ function throwProjectile(targetX, targetY) {
     });
 }
 
+// Handles the player falling down due to imbalance or collision.
+// Resets momentum, balance, and temporarily disables movement.
 function fallDown() {
     // Reset momentum and speed
     momentum = 0;
@@ -1575,6 +1527,8 @@ function fallDown() {
     });
 }
 
+// Handles collisions between the player and entities.
+// Adjusts the player's position and resets balance if necessary.
 function handleEntityCollision(entity) {
     if (entity.type === "tree") {
         // Check how much of the player is inside the tree polygon
@@ -1668,12 +1622,11 @@ function handleEntityCollision(entity) {
 
         // Reset the balance meter upon collision
         balanceMeter = 0; // Set balance to a fixed value to simulate instability
-
-        // Reset the straight-line timer
-        straightLineTimer = 0;
     }
 }
 
+// Returns the player's collision shape rotated to match their current orientation.
+// Used for collision detection with entities.
 function getRotatedCollisionShape(player, x, y) {
     const cosAngle = Math.cos(player.rotation);
     const sinAngle = Math.sin(player.rotation);
@@ -1684,6 +1637,8 @@ function getRotatedCollisionShape(player, x, y) {
     }));
 }
 
+// Checks for collisions between two polygons.
+// Returns true if any point or edge of one polygon intersects with the other.
 function checkPolygonCollision(polygon1, polygon2) {
     // Check if any point of polygon1 is inside polygon2
     for (const point of polygon1) {
@@ -1713,7 +1668,8 @@ function checkPolygonCollision(polygon1, polygon2) {
     return false; // No collision detected
 }
 
-// Custom function to check if a circle intersects with a polygon
+// Checks if a circle intersects with a polygon.
+// Returns true if the circle's center is inside the polygon or if any edge intersects.
 function checkCirclePolygonCollision(circle, polygon) {
     // Check if the circle's center is inside the polygon
     if (Phaser.Geom.Polygon.Contains(polygon, circle.x, circle.y)) {
@@ -1733,9 +1689,38 @@ function checkCirclePolygonCollision(circle, polygon) {
     return false; // No intersection detected
 }
 
-// Utility function to format time as MM:SS
-function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    const secondsLeft = seconds % 60;
-    return `${minutes}:${secondsLeft.toString().padStart(2, '0')}`;
+// Checks for collisions between a rectangle and a polygon.
+// Returns true if any corner of the rectangle is inside the polygon or if any edge intersects.
+function checkRectanglePolygonCollision(rect, polygon) {
+    // Check if any corner of the rectangle is inside the polygon
+    const rectCorners = [
+        { x: rect.x, y: rect.y },
+        { x: rect.x + rect.width, y: rect.y },
+        { x: rect.x, y: rect.y + rect.height },
+        { x: rect.x + rect.width, y: rect.y + rect.height }
+    ];
+
+    for (const corner of rectCorners) {
+        if (Phaser.Geom.Polygon.Contains(polygon, corner.x, corner.y)) {
+            return true;
+        }
+    }
+
+    // Check if any edge of the polygon intersects with the rectangle
+    const polygonPoints = polygon.points;
+    for (let i = 0; i < polygonPoints.length; i++) {
+        const p1 = polygonPoints[i];
+        const p2 = polygonPoints[(i + 1) % polygonPoints.length];
+
+        if (
+            Phaser.Geom.Intersects.LineToRectangle(
+                new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y),
+                rect
+            )
+        ) {
+            return true;
+        }
+    }
+
+    return false; // No collision detected
 }
