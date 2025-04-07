@@ -877,7 +877,6 @@ function create() {
 
     // Add collision detection between projectiles and people
     this.physics.add.overlap(projectiles, people, (projectile, person) => {
-        console.log(projectile, person)
         if (!person.hasComic) {
             person.hasComic = true; // Mark the person as having received a comic
             score += 10; // Award points to the player
@@ -1372,6 +1371,7 @@ function update(time, delta) {
             if (comics < maxComics) {
                 comics = maxComics; // Refill comics
                 this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
+                this.updateComicInventory(); // Refresh the comics display
             }
         }
     }
