@@ -22,14 +22,12 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
-let straightLineTimer = 0; // Timer to track straight-line movement
 let collidableObjects; // Group for collidable objects
 let balanceMeter = 0; // Balance meter value
 let startingX = 9560; // Example starting X position, 9560 comic store
 let startingY = 5841; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
-let hasCargo = true; // Whether the player has cargo
 let projectiles; // Group for projectiles
 let cursorIcon; // Icon to indicate the mouse cursor position
 let score = 0; // Player's score
@@ -38,31 +36,27 @@ let maxComics = 20; // Maximum number of comics
 let momentum = 0; // Player's forward momentum
 const maxMomentum = 300; // Maximum momentum
 const momentumIncrease = 5; // Momentum increase per frame when pedaling
-const momentumDecrease = 15; // Momentum decrease per frame when braking
 const glideFriction = 5; // Friction applied when gliding
-const turnMomentumPenalty = 5; // Momentum penalty when turning
-let refillZone; // The refill zone object
 let refillTween; // Tween for the pulsating effect
 let cursorTween; // Tween for the cursor's pulsating effect
 let canMoveForward = true; // Flag to control forward movement
 let balanceIndicator; // Graphics object for the balance indicator
-let balanceGradientTexture; // Texture for the balance gradient
 let comicCovers = []; // Array to store comic cover keys
 let mouseMoveTimer; // Timer to track mouse movement
 let goingBackward; // Flag to indicate if the player is moving backward
 const mouseHideDelay = 100; // Delay in milliseconds before hiding the cursor
-let lastInputTime = 0; // Tracks the last time input was detected
-const inputTimeout = 1000; // Timeout in milliseconds to stop momentum
 const worldBaseWidth = 1441; // Width of the world
 const worldBaseHeight = 821; // Height of the world
 let debugMode = false; // Flag to enable debug mode, set to false by default
 let minimap; // Declare minimap globally
-let mapContainer; // Container for the map elements
-
+let people = []; // Declare people array globally
+let minimapPeopleIndicators = []; // Declare minimapPeopleIndicators globally
 
 const globalScale = 10;
 
 let coordinateArray = []; // Array to store coordinates
+let lastPlayerPersonCollisionTime = 0; // Track the last collision time globally
+let lastInputTime = 0; // Tracks the last time input was detected globally
 
 function setComics(value) {
     comics = Phaser.Math.Clamp(value, 0, maxComics); // Ensure comics stay within valid bounds
@@ -454,16 +448,28 @@ function create() {
         }
     });
 
-    // Create the refill zone as a circle
-    refillZone = this.add.circle(300, 300, 50, 0x00ff00, 1); // Green circle with full opacity
-    this.physics.add.existing(refillZone, true); // Make it a static physics object
+    // Add the refill zone as an entity
+    const refillZoneEntity = {
+        type: 'refillZone',
+        x: 9560,
+        y: 5841,
+        radius: 30
+    };
+    entities.push(refillZoneEntity);
 
-    // Add collision detection between the player and the refill zone
-    this.physics.add.overlap(player, refillZone, () => {
-        if (comics < maxComics) {
-            comics = maxComics; // Refill comics
-            this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
-        }
+    // Create the refill zone graphics
+    const refillZoneGraphics = this.add.circle(refillZoneEntity.x, refillZoneEntity.y, refillZoneEntity.radius, 0x00ff00, 1);
+    this.physics.add.existing(refillZoneGraphics, true); // Make it a static physics object
+    refillZoneEntity.graphics = refillZoneGraphics;
+
+    // Add a pulsating effect to the refill zone
+    refillZoneEntity.tween = this.tweens.add({
+        targets: refillZoneGraphics,
+        scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
+        duration: 800, // Duration of the pulsation
+        yoyo: true, // Reverse the tween to create a pulsating effect
+        repeat: -1, // Repeat indefinitely
+        ease: 'Sine.easeInOut'
     });
 
     // Bind the fallDown function to the scene
@@ -616,8 +622,8 @@ function create() {
 
     // Add a destination point
     this.currentDestination = this.add.circle(
-        Phaser.Math.Between(startingX - 100, startingX + 100), // X position within 100px of the player
-        Phaser.Math.Between(startingY - 100, startingY + 100), // Y position within 100px of the player
+        Phaser.Math.Between(100, this.physics.world.bounds.width - 100), // Random X position within world bounds
+        Phaser.Math.Between(100, this.physics.world.bounds.height - 100), // Random Y position within world bounds
         20, 
         0xff0000, 
         1
@@ -798,8 +804,8 @@ function create() {
     });
 
     // Dynamically create 100 "People" objects
-    const people = [];
-    const minimapPeopleIndicators = []; // Array to store minimap indicators for people
+    people = []; // Initialize the global people array
+    minimapPeopleIndicators = []; // Initialize the array in the create function
 
     for (let i = 0; i < 100; i++) {
         let person;
@@ -842,22 +848,12 @@ function create() {
         const body = this.add.ellipse(0, 0, 20, 30, 0x00ff00); // Oval for the body
         const head = this.add.circle(0, 0, 10, 0xffcc99); // Circle for the head
 
-        // Add a text object for the exclamation mark or check mark
-        const statusText = this.add.text(0, -40, '!', {
-            font: '20px Arial',
-            fill: '#ff0000' // Red for exclamation mark
-        }).setOrigin(0.5);
-
-        const personContainer = this.add.container(person.x, person.y, [body, head, statusText]);
+        const personContainer = this.add.container(person.x, person.y, [body, head]);
         this.physics.world.enable(personContainer); // Enable physics for the person
         personContainer.body.setCollideWorldBounds(true); // Prevent the person from leaving the world bounds
         personContainer.name = person.name; // Attach the name to the container for easy lookup
         personContainer.hasComic = false; // Track if the person has been given a comic
-        personContainer.statusText = statusText; // Store the status text for updates
-        people.push(personContainer); // Add the person container to the people array
-
-        // Ignore the status text in the minimap
-        minimap.ignore(statusText);
+        people.push(personContainer); // Add the person container to the global people array
 
         // Add a circle to represent the person on the minimap
         const minimapIndicator = this.add.graphics();
@@ -867,7 +863,7 @@ function create() {
         minimapIndicator.strokeCircle(0, 0, 5); // Add the border
         minimapIndicator.setPosition(person.x, person.y);
         minimapIndicator.setScale(15); // Scale up the minimap indicator for better visibility
-        minimapPeopleIndicators.push(minimapIndicator);
+        minimapPeopleIndicators.push(minimapIndicator); // Add to the global array
 
         // Ignore the minimap indicator in the main camera but show it in the minimap
         this.cameras.main.ignore(minimapIndicator);
@@ -881,6 +877,7 @@ function create() {
 
     // Add collision detection between projectiles and people
     this.physics.add.overlap(projectiles, people, (projectile, person) => {
+        console.log(projectile, person)
         if (!person.hasComic) {
             person.hasComic = true; // Mark the person as having received a comic
             score += 10; // Award points to the player
@@ -896,13 +893,9 @@ function create() {
                 minimapIndicator.fillCircle(0, 0, 5);
                 minimapIndicator.strokeCircle(0, 0, 5);
             }
-
-            // Update the status text to a check mark
-            person.statusText.setText('✓');
-            person.statusText.setStyle({ fill: '#00ff00' }); // Green for check mark
         }
 
-        projectile.destroy(); // Destroy the projectile after collision
+        person.destroy(); // Destroy the projectile (comic) after collision
     });
 
     let lastPlayerPersonCollisionTime = 0; // Track the last collision time
@@ -948,10 +941,6 @@ function create() {
                             minimapPeopleIndicators[index].lineStyle(2, 0x000000, 1); // Thin black border
                             minimapPeopleIndicators[index].fillCircle(0, 0, 5);
                             minimapPeopleIndicators[index].strokeCircle(0, 0, 5);
-
-                            // Update the status text to a check mark
-                            person.statusText.setText('✓');
-                            person.statusText.setStyle({ fill: '#00ff00' }); // Green for check mark
                         }
                     }
 
@@ -1141,11 +1130,12 @@ function update(time, delta) {
     }
 
     // Update the refill zone's pulsating effect
-    if (comics < maxComics) {
+    const refillZoneEntity = entities.find(entity => entity.type === 'refillZone');
+    if (refillZoneEntity && comics < maxComics) {
         if (!refillTween) {
             // Start the pulsating effect if it isn't already active
             refillTween = this.tweens.add({
-                targets: refillZone,
+                targets: refillZoneEntity.graphics,
                 scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
                 duration: 800, // Duration of the pulsation
                 yoyo: true, // Reverse the tween to create a pulsating effect
@@ -1153,13 +1143,11 @@ function update(time, delta) {
                 ease: 'Sine.easeInOut'
             });
         }
-    } else {
-        if (refillTween) {
-            // Stop the pulsating effect when comics are full
-            refillTween.stop();
-            refillTween = null;
-            refillZone.setScale(1); // Reset the scale to normal
-        }
+    } else if (refillTween) {
+        // Stop the pulsating effect when comics are full
+        refillTween.stop();
+        refillTween = null;
+        refillZoneEntity.graphics.setScale(1); // Reset the scale to normal
     }
 
     // Check if the spacebar is pressed to shoot a projectile
@@ -1252,6 +1240,140 @@ function update(time, delta) {
 
     if (!vertexFound) {
         this.vertexDebugText.setText('Vertex: None');
+    }
+
+    // Debug mode: Show collision boundaries for People and Player Collision Object
+    if (debugMode) {
+        // Show collision boundaries for People
+        people.forEach(person => {
+            if (!person.debugGraphics) {
+                person.debugGraphics = this.add.graphics();
+                person.debugGraphics.setDepth(2); // Ensure it renders above other objects
+            }
+            person.debugGraphics.clear();
+            person.debugGraphics.lineStyle(2, 0x00ff00, 1); // Green outline
+            person.debugGraphics.strokeEllipse(person.x, person.y, 20, 30); // Match the ellipse dimensions
+        });
+
+        // Show collision boundaries for Player Collision Object
+        if (player.collisionGraphics) {
+            player.collisionGraphics.clear();
+            player.collisionGraphics.lineStyle(2, 0xff0000, 1); // Red outline
+
+            // Draw the thin diamond shape, rotated with the player
+            player.collisionGraphics.beginPath();
+            const shape = player.collisionShape;
+            const cosAngle = Math.cos(player.rotation);
+            const sinAngle = Math.sin(player.rotation);
+
+            const rotatedPoints = shape.map(point => ({
+                x: player.x + point.x * cosAngle - point.y * sinAngle,
+                y: player.y + point.x * sinAngle + point.y * cosAngle
+            }));
+
+            player.collisionGraphics.moveTo(rotatedPoints[0].x, rotatedPoints[0].y);
+            for (let i = 1; i < rotatedPoints.length; i++) {
+                player.collisionGraphics.lineTo(rotatedPoints[i].x, rotatedPoints[i].y);
+            }
+            player.collisionGraphics.closePath();
+            player.collisionGraphics.strokePath();
+        }
+    } else {
+        // Hide debug graphics when debug mode is disabled
+        people.forEach(person => {
+            if (person.debugGraphics) {
+                person.debugGraphics.clear();
+            }
+        });
+        if (player.collisionGraphics) {
+            player.collisionGraphics.clear();
+        }
+    }
+
+    // Handle manual collision detection between projectiles and people
+    projectiles.getChildren().forEach(projectile => {
+        people.forEach(person => {
+            const projectileBounds = new Phaser.Geom.Rectangle(
+                projectile.x - projectile.displayWidth / 2,
+                projectile.y - projectile.displayHeight / 2,
+                projectile.displayWidth,
+                projectile.displayHeight
+            );
+
+            const personBounds = new Phaser.Geom.Rectangle(
+                person.x - 10, // Adjust based on person dimensions
+                person.y - 15, // Adjust based on person dimensions
+                20, // Width of the person
+                30  // Height of the person
+            );
+
+            if (Phaser.Geom.Intersects.RectangleToRectangle(projectileBounds, personBounds)) {
+                if (!person.hasComic) {
+                    person.hasComic = true; // Mark the person as having received a comic
+                    score += 10; // Award points to the player
+                    this.scoreText.setText(`Score: ${score}`); // Update the score display
+
+                    // Update the minimap indicator to gray
+                    const personIndex = people.indexOf(person);
+                    if (personIndex !== -1) {
+                        const minimapIndicator = minimapPeopleIndicators[personIndex];
+                        minimapIndicator.clear();
+                        minimapIndicator.fillStyle(0x808080, 1); // Gray for people who have received comics
+                        minimapIndicator.lineStyle(2, 0x000000, 1); // Thin black border
+                        minimapIndicator.fillCircle(0, 0, 5);
+                        minimapIndicator.strokeCircle(0, 0, 5);
+                    }
+                }
+
+                projectile.destroy(); // Destroy the projectile after collision
+            }
+        });
+    });
+
+    // Handle manual collision detection between player and people
+    people.forEach(person => {
+        const playerBounds = new Phaser.Geom.Rectangle(
+            player.x - player.body.width / 2,
+            player.y - player.body.height / 2,
+            player.body.width,
+            player.body.height
+        );
+
+        const personBounds = new Phaser.Geom.Rectangle(
+            person.x - 10, // Adjust based on person dimensions
+            person.y - 15, // Adjust based on person dimensions
+            20, // Width of the person
+            30  // Height of the person
+        );
+
+        if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, personBounds)) {
+            const currentTime = this.time.now; // Get the current time
+            if (currentTime - lastPlayerPersonCollisionTime >= 3000) { // Check if 3 seconds have passed
+                lastPlayerPersonCollisionTime = currentTime; // Update the last collision time
+                if (!person.hasComic) {
+                    console.log(`Player collided with person: ${person.name}`);
+                    this.fallDown(); // Make the player fall down
+                }
+            }
+        }
+    });
+
+    // Handle manual collision detection between player and refill zone
+    if (refillZoneEntity) {
+        const refillZoneBounds = new Phaser.Geom.Circle(refillZoneEntity.x, refillZoneEntity.y, refillZoneEntity.radius);
+        const playerBounds = new Phaser.Geom.Rectangle(
+            player.x - player.body.width / 2,
+            player.y - player.body.height / 2,
+            player.body.width,
+            player.body.height
+        );
+
+        if (Phaser.Geom.Intersects.CircleToRectangle(refillZoneBounds, playerBounds)) {
+            if (comics < maxComics) {
+                comics = maxComics; // Refill comics
+                this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
+            }
+        }
     }
 }
 
