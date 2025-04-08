@@ -868,42 +868,6 @@ function create() {
         this.cameras.main.ignore(minimapIndicator);
     }
 
-    // Add collision detection between projectiles and people
-    this.physics.add.overlap(projectiles, people, (projectile, person) => {
-        if (!person.hasComic) {
-            person.hasComic = true; // Mark the person as having received a comic
-            score += 10; // Award points to the player
-            this.scoreText.setText(`Score: ${score}`); // Update the score display
-
-            // Update the minimap indicator to gray
-            const personIndex = people.indexOf(person);
-            if (personIndex !== -1) {
-                const minimapIndicator = minimapPeopleIndicators[personIndex];
-                minimapIndicator.clear();
-                minimapIndicator.fillStyle(0x808080, 1); // Gray for people who have received comics
-                minimapIndicator.lineStyle(2, 0x000000, 1); // Thin black border
-                minimapIndicator.fillCircle(0, 0, 5);
-                minimapIndicator.strokeCircle(0, 0, 5);
-            }
-        }
-
-        person.destroy(); // Destroy the projectile (comic) after collision
-    });
-
-    let lastPlayerPersonCollisionTime = 0; // Track the last collision time
-
-    // Add collision detection between the player and people
-    this.physics.add.overlap(player, people, (player, person) => {
-        const currentTime = this.time.now; // Get the current time
-        if (currentTime - lastPlayerPersonCollisionTime >= 3000) { // Check if 3 seconds have passed
-            lastPlayerPersonCollisionTime = currentTime; // Update the last collision time
-            if (!person.hasComic) {
-                console.log(`Player collided with person: ${person.name}`);
-                this.fallDown(); // Make the player fall down
-            }
-        }
-    });
-
     // Update people movement toward their destinations
     this.time.addEvent({
         delay: 50, // Update every 50ms
@@ -925,14 +889,6 @@ function create() {
                     if (Phaser.Math.Distance.Between(person.x, person.y, target.x, target.y) < 5) {
                         if (person.body) {
                             person.body.setVelocity(0, 0);
-                        }
-                        if (!person.hasComic) {
-                            person.hasComic = true; // Mark the person as having received a comic
-                            minimapPeopleIndicators[index].clear();
-                            minimapPeopleIndicators[index].fillStyle(0x808080, 1); // Gray for people who have received comics
-                            minimapPeopleIndicators[index].lineStyle(2, 0x000000, 1); // Thin black border
-                            minimapPeopleIndicators[index].fillCircle(0, 0, 5);
-                            minimapPeopleIndicators[index].strokeCircle(0, 0, 5);
                         }
                     }
 
@@ -1208,7 +1164,7 @@ function update(time, delta) {
         for (let i = 1; i < rotatedPoints.length; i++) {
             player.collisionGraphics.lineTo(rotatedPoints[i].x, rotatedPoints[i].y);
         }
-        player.collisionGraphics.setVisible(false); // Make the collision graphics invisible to the player
+        player.collisionGraphics.setVisible(true); // Make the collision graphics invisible to the player
         player.collisionGraphics.closePath();
         player.collisionGraphics.strokePath();
     }
@@ -1236,7 +1192,7 @@ function update(time, delta) {
         this.vertexDebugText.setText('Vertex: None');
     }
 
-    // Debug mode: Show collision boundaries for People and Player Collision Object
+    // Debug mode: Show collision boundaries for People, Player, Projectiles, and Entities
     if (debugMode) {
         // Show collision boundaries for People
         people.forEach(person => {
@@ -1246,42 +1202,58 @@ function update(time, delta) {
             }
             person.debugGraphics.clear();
             person.debugGraphics.lineStyle(2, 0x00ff00, 1); // Green outline
-            person.debugGraphics.strokeEllipse(person.x, person.y, 20, 30); // Match the ellipse dimensions
+            person.debugGraphics.strokeEllipse(
+                person.x,
+                person.y,
+                person.width || 20, // Default width if not set
+                person.height || 30 // Default height if not set
+            );
         });
 
-        // Show collision boundaries for Player Collision Object
+        // Show collision boundaries for Player
         if (player.collisionGraphics) {
             player.collisionGraphics.clear();
             player.collisionGraphics.lineStyle(2, 0xff0000, 1); // Red outline
 
             // Draw the thin diamond shape, rotated with the player
-            player.collisionGraphics.beginPath();
-            const shape = player.collisionShape;
-            const cosAngle = Math.cos(player.rotation);
-            const sinAngle = Math.sin(player.rotation);
-
-            const rotatedPoints = shape.map(point => ({
-                x: player.x + point.x * cosAngle - point.y * sinAngle,
-                y: player.y + point.x * sinAngle + point.y * cosAngle
-            }));
-
-            player.collisionGraphics.moveTo(rotatedPoints[0].x, rotatedPoints[0].y);
-            for (let i = 1; i < rotatedPoints.length; i++) {
-                player.collisionGraphics.lineTo(rotatedPoints[i].x, rotatedPoints[i].y);
-            }
-            player.collisionGraphics.closePath();
-            player.collisionGraphics.strokePath();
+            const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
+            player.collisionGraphics.strokePoints(rotatedShape, true);
         }
-    } else {
-        // Hide debug graphics when debug mode is disabled
-        people.forEach(person => {
-            if (person.debugGraphics) {
-                person.debugGraphics.clear();
+
+        // Show collision boundaries for Projectiles
+        projectiles.getChildren().forEach(projectile => {
+            if (!projectile.debugGraphics) {
+                projectile.debugGraphics = this.add.graphics();
+                projectile.debugGraphics.setDepth(2); // Ensure it renders above other objects
+            }
+            projectile.debugGraphics.clear();
+            projectile.debugGraphics.lineStyle(2, 0x0000ff, 1); // Blue outline
+            projectile.debugGraphics.strokeRect(
+                projectile.x - projectile.displayWidth / 2,
+                projectile.y - projectile.displayHeight / 2,
+                projectile.displayWidth,
+                projectile.displayHeight
+            );
+        });
+
+        // Show collision boundaries for Entities
+        entities.forEach(entity => {
+            if (entity.polygon) {
+                if (!entity.debugGraphics) {
+                    entity.debugGraphics = this.add.graphics();
+                    entity.debugGraphics.setDepth(2); // Ensure it renders above other objects
+                }
+                entity.debugGraphics.clear();
+                entity.debugGraphics.lineStyle(2, 0xffff00, 1); // Yellow outline
+                entity.debugGraphics.strokePoints(entity.polygon.points, true);
             }
         });
-        if (player.collisionGraphics) {
-            player.collisionGraphics.clear();
-        }
+    } else {
+        // Hide debug graphics when debug mode is disabled
+        people.forEach(person => person.debugGraphics?.clear());
+        player.collisionGraphics?.clear();
+        projectiles.getChildren().forEach(projectile => projectile.debugGraphics?.clear());
+        entities.forEach(entity => entity.debugGraphics?.clear());
     }
 
     // Handle manual collision detection between projectiles and people
@@ -1294,14 +1266,25 @@ function update(time, delta) {
                 projectile.displayHeight
             );
 
-            const personBounds = new Phaser.Geom.Rectangle(
-                person.x - 10, // Adjust based on person dimensions
-                person.y - 15, // Adjust based on person dimensions
-                20, // Width of the person
-                30  // Height of the person
+            const personBounds = new Phaser.Geom.Ellipse(
+                person.x, // Center X
+                person.y, // Center Y
+                20,       // Width of the person
+                30        // Height of the person
             );
 
-            if (Phaser.Geom.Intersects.RectangleToRectangle(projectileBounds, personBounds)) {
+            // Check if any point of the player's rotated shape intersects with the person's bounds
+            const corners = [
+                { x: projectileBounds.x, y: projectileBounds.y },
+                { x: projectileBounds.x + projectileBounds.width, y: projectileBounds.y },
+                { x: projectileBounds.x, y: projectileBounds.y + projectileBounds.height },
+                { x: projectileBounds.x + projectileBounds.width, y: projectileBounds.y + projectileBounds.height }
+            ];
+            const isColliding = corners.some(corner =>
+                Phaser.Geom.Ellipse.ContainsPoint(personBounds, corner)
+            );
+
+            if (isColliding) {
                 if (!person.hasComic) {
                     person.hasComic = true; // Mark the person as having received a comic
                     score += 10; // Award points to the player
@@ -1326,28 +1309,25 @@ function update(time, delta) {
 
     // Handle manual collision detection between player and people
     people.forEach(person => {
-        const playerBounds = new Phaser.Geom.Rectangle(
-            player.x - player.body.width / 2,
-            player.y - player.body.height / 2,
-            player.body.width,
-            player.body.height
+        const playerShape = getRotatedCollisionShape(player, player.x, player.y);
+        const personBounds = new Phaser.Geom.Ellipse(
+            person.x, // Center X
+            person.y, // Center Y
+            20,       // Width of the person
+            30        // Height of the person
         );
 
-        const personBounds = new Phaser.Geom.Rectangle(
-            person.x - 10, // Adjust based on person dimensions
-            person.y - 15, // Adjust based on person dimensions
-            20, // Width of the person
-            30  // Height of the person
+        // Check if any point of the player's rotated shape intersects with the person's bounds
+        const isColliding = playerShape.some(point =>
+            Phaser.Geom.Ellipse.ContainsPoint(personBounds, point)
         );
 
-        if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, personBounds)) {
+        if (isColliding) {
             const currentTime = this.time.now; // Get the current time
             if (currentTime - lastPlayerPersonCollisionTime >= 3000) { // Check if 3 seconds have passed
                 lastPlayerPersonCollisionTime = currentTime; // Update the last collision time
-                if (!person.hasComic) {
-                    console.log(`Player collided with person: ${person.name}`);
-                    this.fallDown(); // Make the player fall down
-                }
+                console.log(`Player collided with person: ${person.name}`);
+                this.fallDown(); // Make the player fall down
             }
         }
     });
@@ -1456,28 +1436,28 @@ function throwProjectile(targetX, targetY) {
     });
 
     // Reward the player with points and make the target object flash
-    this.physics.add.collider(projectile, targetX, targetY, (proj, obj) => {
-        proj.destroy(); // Destroy the projectile
+    // this.physics.add.collider(projectile, targetX, targetY, (proj, obj) => {
+    //     proj.destroy(); // Destroy the projectile
 
-        if (obj.needsComic) {
-            score += 10; // Reward points for a perfect throw
-            this.scoreText.setText(`Score: ${score}`); // Update score display
+    //     if (obj.needsComic) {
+    //         score += 10; // Reward points for a perfect throw
+    //         this.scoreText.setText(`Score: ${score}`); // Update score display
 
-            // Make the target object flash
-            this.tweens.add({
-                targets: obj,
-                alpha: 0,
-                duration: 100,
-                yoyo: true,
-                repeat: 3
-            });
+    //         // Make the target object flash
+    //         this.tweens.add({
+    //             targets: obj,
+    //             alpha: 0,
+    //             duration: 100,
+    //             yoyo: true,
+    //             repeat: 3
+    //         });
 
-            obj.needsComic = false; // Mark the object as no longer needing a comic
-        } else {
-            score -= 1; // Deduct a point for hitting an object that doesn't need a comic
-            this.scoreText.setText(`Score: ${score}`); // Update score display
-        }
-    });
+    //         obj.needsComic = false; // Mark the object as no longer needing a comic
+    //     } else {
+    //         score -= 1; // Deduct a point for hitting an object that doesn't need a comic
+    //         this.scoreText.setText(`Score: ${score}`); // Update score display
+    //     }
+    // });
 
     // Destroy the projectile if it goes out of bounds or after 3 seconds
     this.time.delayedCall(3000, () => {
@@ -1586,7 +1566,7 @@ function handleEntityCollision(entity) {
         const adjustedX = player.x + Math.cos(angle) * adjustDistance * adjustmentFactor;
         const adjustedY = player.y + Math.sin(angle) * adjustDistance * adjustmentFactor;
 
-        // Check for the nearest unoccupied space within a radius
+        // Check for the nearest unoccupied space within a radius, ignoring trees and roads
         let safeX = adjustedX;
         let safeY = adjustedY;
         const searchRadius = 200; // Radius to search for unoccupied space
@@ -1594,26 +1574,26 @@ function handleEntityCollision(entity) {
 
         for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
             for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
-                const testX = adjustedX + r * Math.cos(theta);
-                const testY = adjustedY + r * Math.sin(theta);
+            const testX = adjustedX + r * Math.cos(theta);
+            const testY = adjustedY + r * Math.sin(theta);
 
-                // Check if the test position collides with any entity
-                const isColliding = entities.some(ent => {
-                    if (ent.polygon) {
-                        const rotatedShape = getRotatedCollisionShape(player, testX, testY);
-                        return checkPolygonCollision(rotatedShape, ent.polygon);
-                    }
-                    return false;
-                });
-
-                if (!isColliding) {
-                    safeX = testX;
-                    safeY = testY;
-                    break;
+            // Check if the test position collides with any entity, ignoring trees and roads
+            const isColliding = entities.some(ent => {
+                if (ent.polygon && ent.type !== 'tree' && ent.type !== 'road') {
+                const rotatedShape = getRotatedCollisionShape(player, testX, testY);
+                return checkPolygonCollision(rotatedShape, ent.polygon);
                 }
+                return false;
+            });
+
+            if (!isColliding) {
+                safeX = testX;
+                safeY = testY;
+                break;
+            }
             }
             if (safeX !== adjustedX || safeY !== adjustedY) {
-                break; // Exit the loop if a safe position is found
+            break; // Exit the loop if a safe position is found
             }
         }
 
