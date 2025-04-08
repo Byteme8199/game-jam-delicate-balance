@@ -23,8 +23,8 @@ const game = new Phaser.Game(config);
 
 let player;
 let balanceMeter = 0; // Balance meter value
-let startingX = 9560; // Example starting X position, 9560 comic store
-let startingY = 5841; // Example starting Y position, 5841 comic store
+let startingX = 1600; // Example starting X position, 9560 comic store
+let startingY = 4300; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
@@ -1136,6 +1136,26 @@ function update(time, delta) {
                 }
             });
 
+            // check collision between people and the entity
+            people.forEach(person => {
+                const personBounds = new Phaser.Geom.Ellipse(
+                    person.x, // Center X
+                    person.y, // Center Y
+                    20,       // Width of the person
+                    30        // Height of the person
+                );
+
+                if (checkEllipsePolygonCollision(personBounds, entity.polygon)) {
+                    console.log(`Person collided with: ${entity.type}, Description: ${entity.description}`);
+                    // Handle person collision with the entity, move them away from the entity so they can continue moving towards their destination..  People shouldn't collide on trees or roads though
+                    if (entity.type !== 'tree' && entity.type !== 'road') {
+                        const angle = Phaser.Math.Angle.Between(person.x, person.y, entity.polygon.points[0].x, entity.polygon.points[0].y);
+                        const velocityX = Math.cos(angle) * 100;
+                        const velocityY = Math.sin(angle) * 100;
+                        person.body.setVelocity(velocityX, velocityY);
+                    }
+                }
+            });
         }
     });
 
@@ -1703,4 +1723,64 @@ function checkRectanglePolygonCollision(rect, polygon) {
     }
 
     return false; // No collision detected
+}
+
+// Custom function to check if a line intersects with an ellipse
+function checkLineToEllipse(line, ellipse) {
+    const rx = ellipse.width / 2; // Horizontal radius
+    const ry = ellipse.height / 2; // Vertical radius
+    const cx = ellipse.x; // Center X
+    const cy = ellipse.y; // Center Y
+
+    // Translate the line to the ellipse's local space
+    const x1 = line.x1 - cx;
+    const y1 = line.y1 - cy;
+    const x2 = line.x2 - cx;
+    const y2 = line.y2 - cy;
+
+    // Scale the line to match the ellipse's radii
+    const scaledX1 = x1 / rx;
+    const scaledY1 = y1 / ry;
+    const scaledX2 = x2 / rx;
+    const scaledY2 = y2 / ry;
+
+    // Check for intersection with a unit circle
+    const dx = scaledX2 - scaledX1;
+    const dy = scaledY2 - scaledY1;
+    const a = dx * dx + dy * dy;
+    const b = 2 * (scaledX1 * dx + scaledY1 * dy);
+    const c = scaledX1 * scaledX1 + scaledY1 * scaledY1 - 1;
+
+    const discriminant = b * b - 4 * a * c;
+
+    // If the discriminant is negative, there is no intersection
+    if (discriminant < 0) {
+        return false;
+    }
+
+    // Otherwise, check if the intersection points are within the line segment
+    const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+    const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+
+    return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
+}
+
+// Checks for collisions between an ellipse and a polygon.
+function checkEllipsePolygonCollision(ellipse, polygon) {
+    // Check if the ellipse's center is inside the polygon
+    if (Phaser.Geom.Polygon.Contains(polygon, ellipse.x, ellipse.y)) {
+        return true;
+    }
+
+    // Check if any edge of the polygon intersects with the ellipse
+    const points = polygon.points;
+    for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        if (checkLineToEllipse(new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y), ellipse)) {
+            return true;
+        }
+    }
+
+    return false; // No intersection detected
 }
