@@ -96,7 +96,7 @@ function preload() {
     this.load.audio('comicReceive', 'assets/sounds/mixkit-video-game-health-recharge-2837.wav');
     this.load.audio('comicPickup', 'assets/sounds/mixkit-video-game-treasure-2066.wav');
     this.load.audio('outOfAmmo', 'assets/sounds/mixkit-video-game-retro-click-237.wav');
-    // this.load.audio('', ' mixkit-winning-a-coin-video-game-2069.wav');
+    this.load.audio('gameOver', 'assets/sounds/mixkit-winning-a-coin-video-game-2069.wav');
 }
 
 // Initializes the game world, player, UI elements, and entities.
@@ -566,6 +566,8 @@ function create() {
     // Add a function to end the game
     this.endGame = (won) => {
         this.scene.pause(); // Pause the game
+        backgroundMusic.stop(); // Stop the background music
+        this.sound.play('gameOver'); // Play gameOver sound
         const message = won ? 'You Win!' : 'Time\'s Up!';
         const finalScore = `Final Score: ${score}`;
 
@@ -613,6 +615,7 @@ function create() {
 
         // Add interactivity to the restart button
         restartButton.setInteractive().on('pointerdown', () => {
+            this.sound.play('pressStart'); // Play pressStart sound
             console.log('Restart')
             // Reset all variables to their initial defaults
             score = 0;
@@ -692,35 +695,6 @@ function create() {
 
     // Ignore the minimap indicator in the main camera but show it in the minimap
     this.cameras.main.ignore(minimapDestination);
-
-    // Add collision detection between the player and the destination
-    this.physics.add.overlap(player, this.currentDestination, () => {
-        const deliveryTime = 180 - this.timeLeft; // Calculate the time taken to deliver
-        const scoreIncrease = Math.max(50 - deliveryTime, 10); // Score increases more for faster deliveries, minimum 10 points
-        score += scoreIncrease; // Update the score
-        this.scoreText.setText(`Score: ${score}`); // Update the score display
-
-        // Increase the timer by 30 seconds
-        this.timeLeft = Math.min(this.timeLeft + 30, 180); // Cap the timer at 180 seconds
-        const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
-
-        // Update the progress bar segments
-        this.timerSegments.forEach((segment, index) => {
-            if (index < activeSegments) {
-                segment.setFillStyle(0x00ff00); // Green for active segments
-            } else {
-                segment.setFillStyle(0xff0000); // Red for empty segments
-            }
-        });
-
-        console.log('Comic delivered!'); // Placeholder for delivery logic
-
-        // Move the destination to a new random position
-        this.currentDestination.setPosition(
-            Phaser.Math.Between(100, this.physics.world.bounds.width - 100),
-            Phaser.Math.Between(100, this.physics.world.bounds.height - 100)
-        );
-    });
 
     // Add a main map indicator for the destination
     const mainMapIndicator = this.add.graphics();
@@ -954,6 +928,30 @@ function create() {
 
     // Initial update of the inventory
     this.updateComicInventory();
+
+    // Add background music and play it in a loop
+    const backgroundMusic = this.sound.add('backgroundMusic', { loop: true });
+    backgroundMusic.play();
+
+    // Gradually increase the playback rate of the background music as the timer decreases
+    const initialPlaybackRate = 1; // Normal speed
+    const maxPlaybackRate = 1.5; // 150% speed
+    const speedIncreaseThreshold = 0.2; // 20% of the total time
+
+    this.time.addEvent({
+        delay: 100, // Check every 100ms
+        callback: () => {
+            const remainingTimeRatio = this.timeLeft / 180; // Calculate remaining time as a ratio
+            if (remainingTimeRatio <= speedIncreaseThreshold) {
+                const newRate = Phaser.Math.Interpolation.Linear(
+                    [initialPlaybackRate, maxPlaybackRate],
+                    1 - remainingTimeRatio / speedIncreaseThreshold
+                );
+                backgroundMusic.setRate(newRate); // Gradually increase playback rate
+            }
+        },
+        loop: true
+    });
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
@@ -1142,7 +1140,7 @@ function update(time, delta) {
                     projectile.displayHeight
                 );
 
-                if (checkRectanglePolygonCollision(projectileBounds, entity.polygon) && entity.type !== 'road') {
+                if (checkRectanglePolygonCollision(projectileBounds, entity.polygon) && entity.type !== 'road' && entity.type !== 'tree') {
                     console.log(`Projectile collided with: ${entity.type}, Description: ${entity.description}`);
                     projectile.destroy(); // Destroy the projectile
                 }
@@ -1158,13 +1156,42 @@ function update(time, delta) {
                 );
 
                 if (checkEllipsePolygonCollision(personBounds, entity.polygon)) {
-                    console.log(`Person collided with: ${entity.type}, Description: ${entity.description}`);
+                    // console.log(`Person collided with: ${entity.type}, Description: ${entity.description}`);
                     // Handle person collision with the entity, move them away from the entity so they can continue moving towards their destination..  People shouldn't collide on trees or roads though
                     if (entity.type !== 'tree' && entity.type !== 'road') {
-                        const angle = Phaser.Math.Angle.Between(person.x, person.y, entity.polygon.points[0].x, entity.polygon.points[0].y);
-                        const velocityX = Math.cos(angle) * 100;
-                        const velocityY = Math.sin(angle) * 100;
-                        person.body.setVelocity(velocityX, velocityY);
+                        const searchRadius = 200; // Radius to search for unoccupied space
+                        const stepAngle = Math.PI / 16; // Angle step for radial search
+
+                        let safeX = person.x;
+                        let safeY = person.y;
+
+                        for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
+                            for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
+                                const testX = person.x + r * Math.cos(theta);
+                                const testY = person.y + r * Math.sin(theta);
+
+                                // Check if the test position collides with any entity, ignoring trees and roads
+                                const isColliding = entities.some(ent => {
+                                    if (ent.polygon && ent.type !== 'tree' && ent.type !== 'road') {
+                                        const testBounds = new Phaser.Geom.Ellipse(testX, testY, 20, 30);
+                                        return checkEllipsePolygonCollision(testBounds, ent.polygon);
+                                    }
+                                    return false;
+                                });
+
+                                if (!isColliding) {
+                                    safeX = testX;
+                                    safeY = testY;
+                                    break;
+                                }
+                            }
+                            if (safeX !== person.x || safeY !== person.y) {
+                                break; // Exit the loop if a safe position is found
+                            }
+                        }
+
+                        // Move the person to the nearest unoccupied space
+                        person.setPosition(safeX, safeY);
                     }
                 }
             });
@@ -1319,6 +1346,7 @@ function update(time, delta) {
             if (isColliding) {
                 if (!person.hasComic) {
                     person.hasComic = true; // Mark the person as having received a comic
+                    this.sound.play('comicReceive'); // Play comicReceive sound
                     score += 10; // Award points to the player
                     this.scoreText.setText(`Score: ${score}`); // Update the score display
 
@@ -1376,10 +1404,57 @@ function update(time, delta) {
 
         if (Phaser.Geom.Intersects.CircleToRectangle(refillZoneBounds, playerBounds)) {
             if (comics < maxComics) {
+                this.sound.play('comicPickup'); // Play comicPickup sound
                 comics = maxComics; // Refill comics
                 this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
                 this.updateComicInventory(); // Refresh the comics display
             }
+        }
+    }
+
+    // Handle manual collision detection between player and currentDestination
+    if (this.currentDestination) {
+        const destinationBounds = new Phaser.Geom.Circle(
+            this.currentDestination.x,
+            this.currentDestination.y,
+            this.currentDestination.radius
+        );
+        const playerBounds = new Phaser.Geom.Rectangle(
+            player.x - player.body.width / 2,
+            player.y - player.body.height / 2,
+            player.body.width,
+            player.body.height
+        );
+
+        if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, playerBounds)) {
+            const deliveryTime = 180 - this.timeLeft; // Calculate the time taken to deliver
+            const scoreIncrease = Math.max(50 - deliveryTime, 10); // Score increases more for faster deliveries, minimum 10 points
+            score += scoreIncrease; // Update the score
+            this.scoreText.setText(`Score: ${score}`); // Update the score display
+
+            // Increase the timer by 30 seconds
+            this.timeLeft = Math.min(this.timeLeft + 30, 180); // Cap the timer at 180 seconds
+            const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
+
+            // Update the progress bar segments
+            this.timerSegments.forEach((segment, index) => {
+                if (index < activeSegments) {
+                    segment.setFillStyle(0x00ff00); // Green for active segments
+                } else {
+                    segment.setFillStyle(0xff0000); // Red for empty segments
+                }
+            });
+
+            console.log('Comic delivered!'); // Placeholder for delivery logic
+
+            // Play a sound to celebrate the achievement
+            this.sound.play('comicReceive'); // Play the sound for successfully delivering a comic
+
+            // Move the destination to a new random position
+            this.currentDestination.setPosition(
+                Phaser.Math.Between(100, this.physics.world.bounds.width - 100),
+                Phaser.Math.Between(100, this.physics.world.bounds.height - 100)
+            );
         }
     }
 }
@@ -1423,8 +1498,12 @@ function updateBalanceIndicator() {
 // Throws a projectile (comic) in the direction of the target.
 // Reduces the player's comic count, updates the inventory, and handles collision logic.
 function throwProjectile(targetX, targetY) {
-    if (comics <= 0) return; // Do nothing if the player has no comics left
+    if (comics <= 0) {
+        this.sound.play('outOfAmmo'); // Play out of ammo sound
+        return; // Do nothing if the player has no comics left
+    }
 
+    this.sound.play('throwComic'); // Play throwComic sound
     this.setComics(comics - 1); // Reduce the comic count and update the display
     this.updateComicInventory(); // Update the inventory display
 
@@ -1502,6 +1581,7 @@ function throwProjectile(targetX, targetY) {
 // Handles the player falling down due to imbalance or collision.
 // Resets momentum, balance, and temporarily disables movement.
 function fallDown() {
+    this.sound.play('fallOver'); // Play fallOver sound
     // Reset momentum and speed
     momentum = 0;
     player.body.setVelocity(0, 0);
@@ -1572,9 +1652,12 @@ function handleEntityCollision(entity) {
         player.sprite.setTint(
             Phaser.Display.Color.GetColor(shadowTint.r, shadowTint.g, shadowTint.b)
         );
-    } else {
-        // Reset the player's sprite to its original appearance
-        player.sprite.clearTint();
+    } else if (entity.type === "car") {
+        this.sound.play('runIntoEntityCar'); // Play car collision sound
+    } else if (entity.type === "building") {
+        this.sound.play('runIntoEntityBuilding'); // Play building collision sound
+    } else if (entity.type === "person") {
+        this.sound.play('crashIntoPerson'); // Play person collision sound
     }
 
     // Ensure tint is cleared when no collision occurs
