@@ -831,7 +831,19 @@ function create() {
 
         // Create the graphics for the person in the main camera
         const body = this.add.ellipse(0, 0, 20, 30, 0x00ff00); // Oval for the body
-        const head = this.add.circle(0, 0, 10, 0xffcc99); // Circle for the head
+        const head = this.add.circle(0, 0, 10, null); // Circle for the head
+        // 
+        // // Generate a random human skin color
+        const skinColors = [
+            0xffcc99, // Light skin tone
+            0xf1c27d, // Medium-light skin tone
+            0xe0ac69, // Medium skin tone
+            0xc68642, // Medium-dark skin tone
+            0x8d5524  // Dark skin tone
+        ];
+        const randomSkinColor = Phaser.Utils.Array.GetRandom(skinColors);
+        head.setFillStyle(randomSkinColor); // Apply the random skin color
+        
 
         const personContainer = this.add.container(person.x, person.y, [body, head]);
         this.physics.world.enable(personContainer); // Enable physics for the person
@@ -892,7 +904,7 @@ function create() {
     // Add a background for the inventory
     const inventoryBackground = this.add.graphics();
     inventoryBackground.fillStyle(0x000000, 0.5); // Semi-transparent black
-    inventoryBackground.fillRect(-this.cameras.main.width / 2, -40, this.cameras.main.width, 80); // Full width
+    inventoryBackground.fillRect(-this.cameras.main.width / 2, -20, this.cameras.main.width, 80); // Full width
     inventoryContainer.add(inventoryBackground);
 
     // Create an array to store the comic inventory sprites
@@ -901,7 +913,7 @@ function create() {
     // Populate the inventory with up to 20 comics in a rounded arc
     const totalWidth = this.cameras.main.width - 180; // Leave some padding on the sides
     const comicSpacing = totalWidth / (maxComics - 1); // Spacing between comics
-    const baseHeight = 30; // Base height from the bottom of the screen
+    const baseHeight = 20; // Base height from the bottom of the screen
     const arcHeight = 10; // Maximum height of the arc
 
     for (let i = 0; i < maxComics; i++) {
@@ -911,7 +923,7 @@ function create() {
 
         const angle = normalizedPosition * 20; // Smoothly adjust the angle based on position
         const comicKey = Phaser.Utils.Array.GetRandom(comicCovers); // Randomly select a comic cover
-        const comicSprite = this.add.image(x, y, comicKey).setScale(1).setAngle(angle); // Scale to 1 and apply angle
+        const comicSprite = this.add.image(x, y, comicKey).setScale(0.8).setAngle(angle); // Scale to 1 and apply angle
         inventoryContainer.add(comicSprite);
         this.comicInventorySprites.push(comicSprite);
     }
@@ -951,6 +963,25 @@ function create() {
             }
         },
         loop: true
+    });
+
+    // Add a mute button
+    const muteButton = this.add.text(
+        this.cameras.main.width - 52, // Position near the top-right corner
+        this.cameras.main.height - 52,
+        'Mute',
+        {
+            font: '12px Arial',
+            fill: '#ffffff',
+            backgroundColor: '#000000',
+            padding: { left: 5, right: 5, top: 2, bottom: 2 }
+        }
+    )
+    .setScrollFactor(0) // Ensure it stays fixed on the screen
+    .setInteractive()
+    .on('pointerdown', () => {
+        this.sound.mute = !this.sound.mute; // Toggle mute
+        muteButton.setText(this.sound.mute ? 'Unmute' : 'Mute'); // Update button text
     });
 }
 
@@ -1345,6 +1376,11 @@ function update(time, delta) {
 
             if (isColliding) {
                 if (!person.hasComic) {
+                    // Change the person's body color to gray
+                    const body = person.list.find(child => child instanceof Phaser.GameObjects.Ellipse);
+                    if (body) {
+                        body.setFillStyle(0x808080); // Gray color
+                    }
                     person.hasComic = true; // Mark the person as having received a comic
                     this.sound.play('comicReceive'); // Play comicReceive sound
                     score += 10; // Award points to the player
