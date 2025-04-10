@@ -26,3 +26,4 @@ The game will be playable directly in a web browser. Stay tuned for updates!
 
 ## Credits
 Created for the Lawrenceville Art Center's Free Comic Day Game Jam.
+Some sound Effects:  https://mixkit.co/free-sound-effects/game/
