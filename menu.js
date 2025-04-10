@@ -5,6 +5,7 @@ export default class MenuScene extends Phaser.Scene {
 
     preload() {
         this.load.image('menuBackground', 'assets/menuBackground.png'); // Load the menu background image
+        this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
     }
 
     create() {
@@ -53,6 +54,7 @@ export default class MenuScene extends Phaser.Scene {
 
         // Add interactivity to menu options
         startText.setInteractive().on('pointerdown', () => {
+            this.sound.play('pressStart'); // Play pressStart sound
             this.scene.start('DialogueScene'); // Transition to the dialogue screen
         });
     }

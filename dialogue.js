@@ -6,6 +6,7 @@ export default class DialogueScene extends Phaser.Scene {
     preload() {
         this.load.image('kylePixel', 'assets/kyle_pixel.png'); // Load the character image
         this.load.image('kyleBackground', 'assets/galactic_quest_background.jpg'); // Load the background
+        this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
     }
 
     create() {
@@ -75,6 +76,7 @@ export default class DialogueScene extends Phaser.Scene {
 
         // Add interactivity to the continue button
         continueButton.setInteractive().on('pointerdown', () => {
+            this.sound.play('pressStart'); // Play pressStart sound
             this.scene.start('MainScene'); // Start the main game
         });
     }
