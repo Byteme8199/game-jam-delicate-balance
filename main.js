@@ -788,6 +788,65 @@ function create() {
         loop: true
     });
 
+    // Function to calculate a path avoiding buildings and cars with a wider berth
+    function calculatePath(start, destination, avoidEntities) {
+        const path = [];
+        const stepSize = 50; // Distance between waypoints
+        const bufferDistance = 30; // Additional distance to avoid obstacles
+        let currentX = start.x;
+        let currentY = start.y;
+
+        while (Phaser.Math.Distance.Between(currentX, currentY, destination.x, destination.y) > stepSize) {
+            const angle = Phaser.Math.Angle.Between(currentX, currentY, destination.x, destination.y);
+            const nextX = currentX + Math.cos(angle) * stepSize;
+            const nextY = currentY + Math.sin(angle) * stepSize;
+
+            // Check if the next point collides with any avoidable entity
+            const isColliding = avoidEntities.some(entity => {
+                if (entity.polygon) {
+                    const expandedPolygon = expandPolygon(entity.polygon, bufferDistance);
+                    return Phaser.Geom.Polygon.Contains(expandedPolygon, nextX, nextY);
+                }
+                return false;
+            });
+
+            if (isColliding) {
+                // Adjust the path to avoid the collision
+                const adjustedAngle = angle + Math.PI / 4; // Turn 45 degrees
+                currentX += Math.cos(adjustedAngle) * stepSize;
+                currentY += Math.sin(adjustedAngle) * stepSize;
+            } else {
+                currentX = nextX;
+                currentY = nextY;
+            }
+
+            path.push({ x: currentX, y: currentY });
+        }
+
+        // Add the final destination
+        path.push(destination);
+        return path;
+    }
+
+    // Function to expand a polygon by a given buffer distance
+    function expandPolygon(polygon, buffer) {
+        const expandedPoints = polygon.points.map((point, index) => {
+            const prevPoint = polygon.points[(index - 1 + polygon.points.length) % polygon.points.length];
+            const nextPoint = polygon.points[(index + 1) % polygon.points.length];
+
+            const angleToPrev = Phaser.Math.Angle.Between(point.x, point.y, prevPoint.x, prevPoint.y);
+            const angleToNext = Phaser.Math.Angle.Between(point.x, point.y, nextPoint.x, nextPoint.y);
+
+            const bisectAngle = (angleToPrev + angleToNext) / 2;
+            const offsetX = Math.cos(bisectAngle) * buffer;
+            const offsetY = Math.sin(bisectAngle) * buffer;
+
+            return { x: point.x + offsetX, y: point.y + offsetY };
+        });
+
+        return new Phaser.Geom.Polygon(expandedPoints);
+    }
+
     // Dynamically create 100 "People" objects
     people = []; // Initialize the global people array
     minimapPeopleIndicators = []; // Initialize the array in the create function
@@ -814,12 +873,17 @@ function create() {
 
             // Check for collision with existing entities
             isColliding = entities.some(entity => {
-                if (entity.polygon) {
-                    return checkCirclePolygonCollision({ x: person.x, y: person.y, radius: 20 }, entity.polygon);
+                if (entity.polygon && (entity.type === 'building' || entity.type === 'car')) {
+                    const expandedPolygon = expandPolygon(entity.polygon, 30); // Use a buffer distance
+                    return checkCirclePolygonCollision({ x: person.x, y: person.y, radius: 20 }, expandedPolygon);
                 }
                 return false;
             });
         } while (isColliding);
+
+        // Calculate a path to the destination avoiding buildings and cars
+        const avoidEntities = entities.filter(entity => entity.type === 'building' || entity.type === 'car');
+        person.path = calculatePath({ x: person.x, y: person.y }, person.destination, avoidEntities);
 
         // Add the person to the entities list
         entities.push({
@@ -838,6 +902,7 @@ function create() {
         personContainer.body.setCollideWorldBounds(true); // Prevent the person from leaving the world bounds
         personContainer.name = person.name; // Attach the name to the container for easy lookup
         personContainer.hasComic = false; // Track if the person has been given a comic
+        personContainer.path = person.path; // Assign the calculated path
         people.push(personContainer); // Add the person container to the global people array
 
         // Add a circle to represent the person on the minimap
@@ -859,11 +924,9 @@ function create() {
         delay: 50, // Update every 50ms
         callback: () => {
             people.forEach((person, index) => {
-                // Find the corresponding entity in the entities list
-                const entity = entities.find(e => e.type === 'person' && e.name === person.name);
-                if (entity && entity.destination) {
-                    const target = entity.destination;
-                    const angle = Phaser.Math.Angle.Between(person.x, person.y, target.x, target.y);
+                if (person.path && person.path.length > 0) {
+                    const nextPoint = person.path[0];
+                    const angle = Phaser.Math.Angle.Between(person.x, person.y, nextPoint.x, nextPoint.y);
                     const speed = 20; // Movement speed
 
                     // Ensure person.body exists before setting velocity
@@ -871,61 +934,63 @@ function create() {
                         person.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
                     }
 
-                    // Stop moving if the person reaches the destination
-                    if (Phaser.Math.Distance.Between(person.x, person.y, target.x, target.y) < 5) {
-                        if (person.body) {
-                            person.body.setVelocity(0, 0);
-                        }
+                    // Check if the person has reached the next point
+                    if (Phaser.Math.Distance.Between(person.x, person.y, nextPoint.x, nextPoint.y) < 5) {
+                        person.path.shift(); // Remove the reached point from the path
                     }
-
-                    // Update the minimap indicator's position to match the person's position
-                    minimapPeopleIndicators[index].setPosition(person.x, person.y);
                 }
+
+                // Check for collisions with buildings or cars
+                const collidingEntity = entities.find(entity => {
+                    if (entity.polygon && (entity.type === 'building' || entity.type === 'car')) {
+                        return checkCirclePolygonCollision({ x: person.x, y: person.y, radius: 20 }, entity.polygon);
+                    }
+                    return false;
+                });
+
+                if (collidingEntity) {
+                    console.log(`Person collided with: ${collidingEntity.type}`);
+                    shuntPersonAway(person, collidingEntity);
+                }
+
+                // Update the minimap indicator's position to match the person's position
+                minimapPeopleIndicators[index].setPosition(person.x, person.y);
             });
         },
         loop: true
     });
 
-    // Create a container for the comic inventory
-    const inventoryContainer = this.add.container(this.cameras.main.width / 2, this.cameras.main.height - 60).setScrollFactor(0);
+    // Function to shunt a person away from a colliding entity
+    function shuntPersonAway(person, entity) {
+        const searchRadius = 100; // Radius to search for unoccupied space
+        const stepAngle = Math.PI / 16; // Angle step for radial search
+        let safeX = person.x;
+        let safeY = person.y;
 
-    // Add a background for the inventory
-    const inventoryBackground = this.add.graphics();
-    inventoryBackground.fillStyle(0x000000, 0.5); // Semi-transparent black
-    inventoryBackground.fillRect(-this.cameras.main.width / 2, -40, this.cameras.main.width, 80); // Full width
-    inventoryContainer.add(inventoryBackground);
+        for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
+            for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
+                const testX = person.x + r * Math.cos(theta);
+                const testY = person.y + r * Math.sin(theta);
 
-    // Create an array to store the comic inventory sprites
-    this.comicInventorySprites = [];
+                // Check if the test position collides with any entity
+                const isColliding = entities.some(ent => {
+                    if (ent.polygon && (ent.type === 'building' || ent.type === 'car')) {
+                        return checkCirclePolygonCollision({ x: testX, y: testY, radius: 20 }, ent.polygon);
+                    }
+                    return false;
+                });
 
-    // Populate the inventory with up to 20 comics in a rounded arc
-    const totalWidth = this.cameras.main.width - 180; // Leave some padding on the sides
-    const comicSpacing = totalWidth / (maxComics - 1); // Spacing between comics
-    const baseHeight = 30; // Base height from the bottom of the screen
-    const arcHeight = 10; // Maximum height of the arc
-
-    for (let i = 0; i < maxComics; i++) {
-        const x = -totalWidth / 2 + i * comicSpacing; // Position comics evenly across the width
-        const normalizedPosition = (i - (maxComics - 1) / 2) / ((maxComics - 1) / 2); // Normalize position to [-1, 1]
-        const y = -baseHeight + Math.pow(normalizedPosition, 2) * arcHeight; // Create a parabolic arc
-
-        const angle = normalizedPosition * 20; // Smoothly adjust the angle based on position
-        const comicKey = Phaser.Utils.Array.GetRandom(comicCovers); // Randomly select a comic cover
-        const comicSprite = this.add.image(x, y, comicKey).setScale(1).setAngle(angle); // Scale to 1 and apply angle
-        inventoryContainer.add(comicSprite);
-        this.comicInventorySprites.push(comicSprite);
-    }
-
-    // Ensure the inventoryContainer is shown on the minimap
-    minimap.ignore(inventoryContainer, false);
-
-    // Update the inventory display when comics are used
-    this.updateComicInventory = () => {
-        this.comicInventorySprites.forEach((sprite, index) => {
-            sprite.setVisible(index < comics); // Show comics from right to left
-        });
-    };
-
+                if (!isColliding) {
+                    safeX = testX;
+                    safeY = testY;
+                    break;
+                }
+            }
+            if (safeX !== person.x || safeY !== person.y) {
+                break; // Exit the loop if a safe position is found
+            }
+        }
+      
     // Initial update of the inventory
     this.updateComicInventory();
 
