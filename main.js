@@ -23,8 +23,8 @@ const game = new Phaser.Game(config);
 
 let player;
 let balanceMeter = 0; // Balance meter value
-let startingX = 1600; // Example starting X position, 9560 comic store
-let startingY = 4300; // Example starting Y position, 5841 comic store
+let startingX = 8749; // Example starting X position, 9560 comic store
+let startingY = 3791; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
@@ -32,6 +32,7 @@ let cursorIcon; // Icon to indicate the mouse cursor position
 let score = 0; // Player's score
 let comics = 20; // Player starts with 10 comics
 let maxComics = 20; // Maximum number of comics
+let maxTime = 1800000; // Maximum time in seconds
 let momentum = 0; // Player's forward momentum
 const maxMomentum = 300; // Maximum momentum
 const momentumIncrease = 5; // Momentum increase per frame when pedaling
@@ -551,7 +552,7 @@ function create() {
     this.input.mouse.disableContextMenu();
 
     // Add a timer for the game
-    this.timeLeft = 180; // 3 minutes (180 seconds)
+    this.timeLeft = maxTime; // 3 minutes (180 seconds)
     this.time.addEvent({
         delay: 1000, // Decrease time every second
         callback: () => {
@@ -622,7 +623,7 @@ function create() {
             comics = 10;
             momentum = 0;
             balanceMeter = 0;
-            this.timeLeft = 180;
+            this.timeLeft = this.maxTime;
 
             // Clear all active tweens and timers to prevent freezing
             this.tweens.killAll();
@@ -763,7 +764,7 @@ function create() {
     }
 
     // Initialize the timer
-    this.timeLeft = 180; // 3 minutes (180 seconds)
+    this.timeLeft = this.maxTime; // 3 minutes (180 seconds)
     this.timePerSegment = this.timeLeft / segmentCount; // Time each segment represents
 
     this.time.addEvent({
@@ -878,28 +879,31 @@ function create() {
     this.time.addEvent({
         delay: 50, // Update every 50ms
         callback: () => {
+            const cameraBounds = this.cameras.main.worldView; // Get the main camera view bounds
             people.forEach((person, index) => {
-                // Find the corresponding entity in the entities list
-                const entity = entities.find(e => e.type === 'person' && e.name === person.name);
-                if (entity && entity.destination) {
-                    const target = entity.destination;
-                    const angle = Phaser.Math.Angle.Between(person.x, person.y, target.x, target.y);
-                    const speed = 20; // Movement speed
+                if (cameraBounds.contains(person.x, person.y)) { // Only process people within the camera view
+                    // Find the corresponding entity in the entities list
+                    const entity = entities.find(e => e.type === 'person' && e.name === person.name);
+                    if (entity && entity.destination) {
+                        const target = entity.destination;
+                        const angle = Phaser.Math.Angle.Between(person.x, person.y, target.x, target.y);
+                        const speed = 20; // Movement speed
 
-                    // Ensure person.body exists before setting velocity
-                    if (person.body) {
-                        person.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-                    }
-
-                    // Stop moving if the person reaches the destination
-                    if (Phaser.Math.Distance.Between(person.x, person.y, target.x, target.y) < 5) {
+                        // Ensure person.body exists before setting velocity
                         if (person.body) {
-                            person.body.setVelocity(0, 0);
+                            person.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
                         }
-                    }
 
-                    // Update the minimap indicator's position to match the person's position
-                    minimapPeopleIndicators[index].setPosition(person.x, person.y);
+                        // Stop moving if the person reaches the destination
+                        if (Phaser.Math.Distance.Between(person.x, person.y, target.x, target.y) < 5) {
+                            if (person.body) {
+                                person.body.setVelocity(0, 0);
+                            }
+                        }
+
+                        // Update the minimap indicator's position to match the person's position
+                        minimapPeopleIndicators[index].setPosition(person.x, person.y);
+                    }
                 }
             });
         },
@@ -1160,7 +1164,8 @@ function update(time, delta) {
 
     // Handle manual collision detection with entities
     entities.forEach(entity => {
-        if (entity.polygon) {
+        const cameraBounds = this.cameras.main.worldView; // Get the main camera view bounds
+        if (entity.polygon && cameraBounds.contains(entity.polygon.points[0].x, entity.polygon.points[0].y)) { // Only process entities within the camera view
             // Check collision between the player's collision shape and the entity
             const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
             if (checkPolygonCollision(rotatedShape, entity.polygon)) {
@@ -1172,65 +1177,69 @@ function update(time, delta) {
 
             // Check collision between projectiles and the entity
             projectiles.getChildren().forEach(projectile => {
-                const projectileBounds = new Phaser.Geom.Rectangle(
-                    projectile.x - projectile.displayWidth / 2,
-                    projectile.y - projectile.displayHeight / 2,
-                    projectile.displayWidth,
-                    projectile.displayHeight
-                );
+                if (cameraBounds.contains(projectile.x, projectile.y)) { // Only process projectiles within the camera view
+                    const projectileBounds = new Phaser.Geom.Rectangle(
+                        projectile.x - projectile.displayWidth / 2,
+                        projectile.y - projectile.displayHeight / 2,
+                        projectile.displayWidth,
+                        projectile.displayHeight
+                    );
 
-                if (checkRectanglePolygonCollision(projectileBounds, entity.polygon) && entity.type !== 'road' && entity.type !== 'tree') {
-                    console.log(`Projectile collided with: ${entity.type}, Description: ${entity.description}`);
-                    projectile.destroy(); // Destroy the projectile
+                    if (checkRectanglePolygonCollision(projectileBounds, entity.polygon) && entity.type !== 'road' && entity.type !== 'tree') {
+                        console.log(`Projectile collided with: ${entity.type}, Description: ${entity.description}`);
+                        projectile.destroy(); // Destroy the projectile
+                    }
                 }
             });
 
             // check collision between people and the entity
             people.forEach(person => {
-                const personBounds = new Phaser.Geom.Ellipse(
-                    person.x, // Center X
-                    person.y, // Center Y
-                    20,       // Width of the person
-                    30        // Height of the person
-                );
+                if (cameraBounds.contains(person.x, person.y)) { // Only process people within the camera view
+                    const personBounds = new Phaser.Geom.Ellipse(
+                        person.x, // Center X
+                        person.y, // Center Y
+                        20,       // Width of the person
+                        30        // Height of the person
+                    );
 
-                if (checkEllipsePolygonCollision(personBounds, entity.polygon)) {
-                    // console.log(`Person collided with: ${entity.type}, Description: ${entity.description}`);
-                    // Handle person collision with the entity, move them away from the entity so they can continue moving towards their destination..  People shouldn't collide on trees or roads though
-                    if (entity.type !== 'tree' && entity.type !== 'road') {
-                        const searchRadius = 200; // Radius to search for unoccupied space
-                        const stepAngle = Math.PI / 16; // Angle step for radial search
+                    if (checkEllipsePolygonCollision(personBounds, entity.polygon)) {
+                        // console.log(`Person collided with: ${entity.type}, Description: ${entity.description}`);
+                        // Handle person collision with the entity, move them away from the entity so they can continue moving towards their destination..  People shouldn't collide on trees or roads though
+                        if (entity.type !== 'tree' && entity.type !== 'road') {
+                            const searchRadius = 200; // Radius to search for unoccupied space
+                            const stepAngle = Math.PI / 16; // Angle step for radial search
 
-                        let safeX = person.x;
-                        let safeY = person.y;
+                            let safeX = person.x;
+                            let safeY = person.y;
 
-                        for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
-                            for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
-                                const testX = person.x + r * Math.cos(theta);
-                                const testY = person.y + r * Math.sin(theta);
+                            for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
+                                for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
+                                    const testX = person.x + r * Math.cos(theta);
+                                    const testY = person.y + r * Math.sin(theta);
 
-                                // Check if the test position collides with any entity, ignoring trees and roads
-                                const isColliding = entities.some(ent => {
-                                    if (ent.polygon && ent.type !== 'tree' && ent.type !== 'road') {
-                                        const testBounds = new Phaser.Geom.Ellipse(testX, testY, 20, 30);
-                                        return checkEllipsePolygonCollision(testBounds, ent.polygon);
+                                    // Check if the test position collides with any entity, ignoring trees and roads
+                                    const isColliding = entities.some(ent => {
+                                        if (ent.polygon && ent.type !== 'tree' && ent.type !== 'road') {
+                                            const testBounds = new Phaser.Geom.Ellipse(testX, testY, 20, 30);
+                                            return checkEllipsePolygonCollision(testBounds, ent.polygon);
+                                        }
+                                        return false;
+                                    });
+
+                                    if (!isColliding) {
+                                        safeX = testX;
+                                        safeY = testY;
+                                        break;
                                     }
-                                    return false;
-                                });
-
-                                if (!isColliding) {
-                                    safeX = testX;
-                                    safeY = testY;
-                                    break;
+                                }
+                                if (safeX !== person.x || safeY !== person.y) {
+                                    break; // Exit the loop if a safe position is found
                                 }
                             }
-                            if (safeX !== person.x || safeY !== person.y) {
-                                break; // Exit the loop if a safe position is found
-                            }
-                        }
 
-                        // Move the person to the nearest unoccupied space
-                        person.setPosition(safeX, safeY);
+                            // Move the person to the nearest unoccupied space
+                            person.setPosition(safeX, safeY);
+                        }
                     }
                 }
             });
