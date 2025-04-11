@@ -1,17 +1,3 @@
-body {
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-family: Arial, sans-serif;
-    background-color: #FFFFFF;
-    height: 100vh; /* Ensure the body takes up the full viewport height */
-    overflow: hidden; /* Prevent scrolling */
-    position: relative; /* Ensure child elements are positioned relative to the body */
-}
-
 #tv-foreground {
     position: fixed; /* Ensure it stays on top and doesn't scroll */
     top: 0;

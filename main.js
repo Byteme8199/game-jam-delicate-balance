@@ -5,8 +5,8 @@ import { getRandomName } from './utils.js'; // Import utility for generating ran
 
 const config = {
     type: Phaser.WEBGL,
-    width: 600, // Set fixed width
-    height: 450, // Set fixed height
+    width: window.innerWidth, // Set to window width
+    height: window.innerHeight, // Set to window height
     parent: 'game', // ID of the HTML element to attach the game
     physics: {
         default: 'arcade',
@@ -828,10 +828,16 @@ function create() {
             name: person.name,
             destination: person.destination
         });
-
+        
         // Create the graphics for the person in the main camera
-        const body = this.add.ellipse(0, 0, 20, 30, 0x00ff00); // Oval for the body
-        const head = this.add.circle(0, 0, 10, null); // Circle for the head
+        const bodyWidth = Phaser.Math.Between(15, 25); // Random width for the body
+        const bodyHeight = Phaser.Math.Between(25, 35); // Random height for the body
+        const headRadius = Phaser.Math.Between(8, 12); // Random radius for the head
+
+        
+
+        const body = this.add.ellipse(0, 0, bodyWidth, bodyHeight, 0x00ff00); // Oval for the body
+        const head = this.add.circle(0, -bodyHeight / 2 - headRadius / 2, headRadius, null); // Circle for the head
         // 
         // // Generate a random human skin color
         const skinColors = [
@@ -843,7 +849,9 @@ function create() {
         ];
         const randomSkinColor = Phaser.Utils.Array.GetRandom(skinColors);
         head.setFillStyle(randomSkinColor); // Apply the random skin color
-        
+
+        // Adjust the head position to be in the middle of the body
+        head.setPosition(0, 0); // Center the head within the body
 
         const personContainer = this.add.container(person.x, person.y, [body, head]);
         this.physics.world.enable(personContainer); // Enable physics for the person
@@ -1334,10 +1342,31 @@ function update(time, delta) {
                     entity.debugGraphics.setDepth(2); // Ensure it renders above other objects
                 }
                 entity.debugGraphics.clear();
-                entity.debugGraphics.lineStyle(2, 0xffff00, 1); // Yellow outline
+
+                // Set line color based on entity type
+                let lineColor;
+                switch (entity.type) {
+                    case 'car':
+                        lineColor = 0xc0c0c0; // Silver
+                        break;
+                    case 'tree':
+                        lineColor = 0x00ff00; // Green
+                        break;
+                    case 'road':
+                        lineColor = 0x000000; // Black
+                        break;
+                    case 'building':
+                        lineColor = 0xffffff; // White
+                        break;
+                    default:
+                        lineColor = 0xffff00; // Default yellow
+                }
+
+                entity.debugGraphics.lineStyle(2, lineColor, 1); // Set line style
                 entity.debugGraphics.strokePoints(entity.polygon.points, true);
             }
         });
+
     } else {
         // Hide debug graphics when debug mode is disabled
         people.forEach(person => person.debugGraphics?.clear());
