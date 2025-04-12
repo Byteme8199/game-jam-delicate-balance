@@ -26,8 +26,8 @@ const game = new Phaser.Game(config);
 let player;
 let numCars = 0; // Number of cars in the game
 let balanceMeter = 0; // Balance meter value
-let startingX = 5845; // Example starting X position, 9560 comic store
-let startingY = 6447; // Example starting Y position, 5841 comic store
+let startingX = 8847; // Example starting X position, 9560 comic store
+let startingY = 4315; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
