@@ -7,8 +7,8 @@ import { getRandomName } from './utils.js'; // Import utility for generating ran
 
 const config = {
     type: Phaser.WEBGL,
-    width: window.innerWidth, // Set to window width
-    height: window.innerHeight, // Set to window height
+    width: 600, // OR window.innerWidth for testing, // Set to window width
+    height: 450, // OR window.innerHeight for Testing, // Set to window height
     parent: 'game', // ID of the HTML element to attach the game
     physics: {
         default: 'arcade',
@@ -24,10 +24,10 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
-let numCars = 0; // Number of cars in the game
+let numCars = 20; // Number of cars in the game
 let balanceMeter = 0; // Balance meter value
-let startingX = 8847; // Example starting X position, 9560 comic store
-let startingY = 4315; // Example starting Y position, 5841 comic store
+let startingX = 9560; // Example starting X position, 9560 comic store
+let startingY = 5633; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
@@ -35,7 +35,7 @@ let cursorIcon; // Icon to indicate the mouse cursor position
 let score = 0; // Player's score
 let comics = 20; // Player starts with 10 comics
 let maxComics = 20; // Maximum number of comics
-let maxTime = 1800000; // Maximum time in seconds
+let maxTime = 180; // Maximum time in seconds
 let momentum = 0; // Player's forward momentum
 const maxMomentum = 300; // Maximum momentum
 const momentumIncrease = 5; // Momentum increase per frame when pedaling
@@ -647,15 +647,14 @@ function create() {
     }
 
     // Initialize the timer
-    this.timeLeft = this.maxTime; // 3 minutes (180 seconds)
-    this.timePerSegment = this.timeLeft / segmentCount; // Time each segment represents
+    this.timeLeft = maxTime; // 3 minutes (180 seconds)
+    this.timePerSegment = maxTime / segmentCount; // Time each segment represents
 
     this.time.addEvent({
         delay: 1000, // Decrease time every second
         callback: () => {
-            this.timeLeft--;
+            this.timeLeft = Math.max(this.timeLeft - 1, 0); // Decrease time but ensure it doesn't go below 0
             const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
-
             // Update the progress bar segments
             this.timerSegments.forEach((segment, index) => {
                 if (index < activeSegments) {
@@ -1146,8 +1145,8 @@ function update(time, delta) {
 
     // Handle manual collision detection with entities
     entities.forEach(entity => {
-        const cameraBounds = this.cameras.main.worldView; // Get the main camera view bounds
-        if (entity.polygon && cameraBounds.contains(entity.polygon.points[0].x, entity.polygon.points[0].y)) { // Only process entities within the camera view
+        // const cameraBounds = this.cameras.main.worldView; // Get the main camera view bounds
+        if (entity.polygon) { // Only process entities within the camera view
             // Check collision between the player's collision shape and the entity
             const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
             if (checkPolygonCollision(rotatedShape, entity.polygon)) {
@@ -1159,7 +1158,7 @@ function update(time, delta) {
 
             // Check collision between projectiles and the entity
             projectiles.getChildren().forEach(projectile => {
-                if (cameraBounds.contains(projectile.x, projectile.y)) { // Only process projectiles within the camera view
+                // if (cameraBounds.contains(projectile.x, projectile.y)) { // Only process projectiles within the camera view
                     const projectileBounds = new Phaser.Geom.Rectangle(
                         projectile.x - projectile.displayWidth / 2,
                         projectile.y - projectile.displayHeight / 2,
@@ -1171,12 +1170,12 @@ function update(time, delta) {
                         console.log(`Projectile collided with: ${entity.type}`);
                         projectile.destroy(); // Destroy the projectile
                     }
-                }
+                // }
             });
 
             // check collision between people and the entity
             people.forEach(person => {
-                if (cameraBounds.contains(person.x, person.y)) { // Only process people within the camera view
+                // if (cameraBounds.contains(person.x, person.y)) { // Only process people within the camera view
                     const personBounds = new Phaser.Geom.Ellipse(
                         person.x, // Center X
                         person.y, // Center Y
@@ -1222,7 +1221,7 @@ function update(time, delta) {
                             person.setPosition(safeX, safeY);
                         }
                     }
-                }
+                // }
             });
         }
     });
@@ -1458,13 +1457,13 @@ function update(time, delta) {
         );
 
         if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, playerBounds)) {
-            const deliveryTime = 180 - this.timeLeft; // Calculate the time taken to deliver
-            const scoreIncrease = Math.max(50 - deliveryTime, 10); // Score increases more for faster deliveries, minimum 10 points
-            score += scoreIncrease; // Update the score
-            this.scoreText.setText(`Score: ${score}`); // Update the score display
+            // Ensure this.timeLeft is a valid number
+            if (isNaN(this.timeLeft) || this.timeLeft === undefined) {
+                this.timeLeft = maxTime; // Reset to maxTime if invalid
+            }
 
-            // Increase the timer by 30 seconds
-            this.timeLeft = Math.min(this.timeLeft + 30, 180); // Cap the timer at 180 seconds
+            const deliveryTime = maxTime - this.timeLeft; // Calculate the time taken to deliver
+            this.timeLeft = Math.min(this.timeLeft + 30, maxTime); // Cap the timer at maxTime
             const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
 
             // Update the progress bar segments

@@ -6,6 +6,7 @@ export default class MenuScene extends Phaser.Scene {
     preload() {
         this.load.image('menuBackground', 'assets/menuBackground.png'); // Load the menu background image
         this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
+        this.load.audio('select', 'assets/sounds/mixkit-player-jumping-in-a-video-game-2043.wav');
     }
 
     create() {
@@ -59,7 +60,7 @@ export default class MenuScene extends Phaser.Scene {
         });
 
         // Add an Instructions button
-        const instructionsText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, 'Instructions', {
+        const instructionsText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 120, 'Instructions', {
             font: '24px PressStart2P',
             fill: '#ffffff',
             shadow: {
@@ -74,7 +75,7 @@ export default class MenuScene extends Phaser.Scene {
 
         // Add interactivity to the Instructions button
         instructionsText.setInteractive().on('pointerdown', () => {
-            this.sound.play('pressStart'); // Play pressStart sound
+            this.sound.play('select'); // Play pressStart sound
             this.scene.start('InstructionsScene'); // Transition to the instructions screen
         });
     }
