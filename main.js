@@ -515,6 +515,36 @@ function create() {
     this.endGame = (won) => {
         this.scene.pause(); // Pause the game
         this.sound.stopAll(); // Stop all sounds
+        // // Reset all global variables to their initial values
+        player = null;
+        numCars = 20;
+        balanceMeter = 0;
+        startingX = 9560;
+        startingY = 5633;
+        balanceThresholdLeft = -100;
+        balanceThresholdRight = 100;
+        projectiles = null;
+        cursorIcon = null;
+        score = 0;
+        comics = 20;
+        maxComics = 20;
+        maxTime = 180;
+        momentum = 0;
+        refillTween = null;
+        cursorTween = null;
+        canMoveForward = true;
+        balanceIndicator = null;
+        comicCovers = [];
+        mouseMoveTimer = null;
+        goingBackward = false;
+        debugMode = false;
+        minimap = null;
+        people = [];
+        minimapPeopleIndicators = [];
+        cars = [];
+        coordinateArray = [];
+        lastPlayerPersonCollisionTime = 0;
+        lastInputTime = 0;        
         this.scene.start('GameOverScene', { score }); // Transition to the GameOverScene with the final score
     };
 
@@ -1442,6 +1472,8 @@ function update(time, delta) {
         }
     }
 
+    let lastDeliveryTime = maxTime; // Initialize to maxTime for the first delivery
+
     // Handle manual collision detection between player and currentDestination
     if (this.currentDestination) {
         const destinationBounds = new Phaser.Geom.Circle(
@@ -1462,7 +1494,25 @@ function update(time, delta) {
                 this.timeLeft = maxTime; // Reset to maxTime if invalid
             }
 
-            const deliveryTime = maxTime - this.timeLeft; // Calculate the time taken to deliver
+            // Calculate the time taken for the delivery
+            const currentTime = maxTime - this.timeLeft; // Current elapsed time
+            const deliveryTime = currentTime - (maxTime - lastDeliveryTime); // Time since the last delivery
+
+            // Calculate the score multiplier based on delivery speed
+            const baseScore = 50; // Base score for a delivery
+            const multiplier = Math.max(1, Math.floor((30 - deliveryTime) / 5)); // Faster deliveries get higher multipliers
+            const deliveryScore = baseScore * multiplier;
+
+            // Update the score
+            score += deliveryScore;
+            this.scoreText.setText(`Score: ${score}`); // Update the score display
+
+            console.log(`Comic delivered! Time: ${deliveryTime}s, Multiplier: x${multiplier}, Score: +${deliveryScore}`);
+
+            // Update the last delivery time
+            lastDeliveryTime = maxTime - this.timeLeft;
+
+            // Add time to the game timer
             this.timeLeft = Math.min(this.timeLeft + 30, maxTime); // Cap the timer at maxTime
             const activeSegments = Math.ceil(this.timeLeft / this.timePerSegment);
 
@@ -1474,8 +1524,6 @@ function update(time, delta) {
                     segment.setFillStyle(0xff0000); // Red for empty segments
                 }
             });
-
-            console.log('Comic delivered!'); // Placeholder for delivery logic
 
             // Play a sound to celebrate the achievement
             this.sound.play('comicReceive'); // Play the sound for successfully delivering a comic
