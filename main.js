@@ -25,8 +25,8 @@ const game = new Phaser.Game(config);
 
 let player;
 let balanceMeter = 0; // Balance meter value
-let startingX = 8749; // Example starting X position, 9560 comic store
-let startingY = 3791; // Example starting Y position, 5841 comic store
+let startingX = 2873; // Example starting X position, 9560 comic store
+let startingY = 3022; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
@@ -64,9 +64,6 @@ let lastInputTime = 0; // Tracks the last time input was detected globally
 // Updates the comic count display and inventory UI.
 function setComics(value) {
     comics = Phaser.Math.Clamp(value, 0, maxComics);
-    if (this.comicsText) {
-        this.comicsText.setText(`Comics: ${comics}`);
-    }
     if (this.updateComicInventory) {
         this.updateComicInventory();
     }
@@ -172,56 +169,49 @@ function create() {
     });
 
     // Dynamically create mapped objects
-    entities.forEach(entity => {
-        if (entity.vertices) {
-            const entityGraphics = this.add.graphics();
-            entityGraphics.beginPath();
+    // entities.forEach(entity => {
+    //     if (entity.vertices) {
+    //         const entityGraphics = this.add.graphics();
+    //         entityGraphics.beginPath();
 
-            // Move to the first vertex
-            const firstVertex = entity.vertices[0];
-            entityGraphics.moveTo(firstVertex.x, firstVertex.y);
+    //         // Move to the first vertex
+    //         const firstVertex = entity.vertices[0];
+    //         entityGraphics.moveTo(firstVertex.x, firstVertex.y);
 
-            // Draw lines to the remaining vertices
-            entity.vertices.forEach(vertex => {
-                entityGraphics.lineTo(vertex.x, vertex.y);
-            });
+    //         // Draw lines to the remaining vertices
+    //         entity.vertices.forEach(vertex => {
+    //             entityGraphics.lineTo(vertex.x, vertex.y);
+    //         });
 
-            // Close the path and fill the shape
-            entityGraphics.closePath();
-            entityGraphics.fillStyle(0x808080, 1); // Gray color for entities
-            entityGraphics.fillPath();
-            this.mapContainer.add(entityGraphics);
+    //         // Close the path and fill the shape
+    //         entityGraphics.closePath();
+    //         entityGraphics.fillStyle(0x808080, 1); // Gray color for entities
+    //         entityGraphics.fillPath();
+    //         this.mapContainer.add(entityGraphics);
 
-            // Add red dots on each vertex
-            const dots = [];
-            entity.vertices.forEach(vertex => {
-                const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
-                dot.setDepth(2); // Ensure the dot is above the entity
-                this.mapContainer.add(dot);
-                dots.push(dot);
-            });
+    //         // Add red dots on each vertex
+    //         const dots = [];
+    //         entity.vertices.forEach(vertex => {
+    //             const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
+    //             dot.setDepth(2); // Ensure the dot is above the entity
+    //             this.mapContainer.add(dot);
+    //             dots.push(dot);
+    //         });
 
-            // Store the graphics and dots for toggling visibility
-            entity.graphics = entityGraphics;
-            entity.dots = dots;
+    //         // Store the graphics and dots for toggling visibility
+    //         entity.graphics = entityGraphics;
+    //         entity.dots = dots;
 
-            // Store the entity for manual collision handling
-            entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
-        }
-    });
+    //         // Store the entity for manual collision handling
+    //         entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
+    //     }
+    // });
 
     // Set the player's depth to ensure it renders above roads, intersections, and grassy areas
     player.setDepth(1);
 
     // Create a container for all the top-left text
     const textContainer = this.add.container(10, 10).setScrollFactor(0);
-
-    // Add text to display the balance meter (for debugging or UI purposes)
-    this.balanceText = this.add.text(0, 0, 'Balance: 0', {
-        font: '16px Arial',
-        fill: '#ffffff'
-    });
-    textContainer.add(this.balanceText);
 
     // Add text to display the player's coordinates
     this.coordsText = this.add.text(0, 20, 'X: 0, Y: 0', {
@@ -268,15 +258,8 @@ function create() {
     ).setOrigin(0.5, 0); // Centered horizontally and aligned to the top
     this.scoreText.setScrollFactor(0); // Ensure it stays fixed relative to the minimap
 
-    // Add text to display the player's comic count
-    this.comicsText = this.add.text(0, 60, `Comics: ${comics}`, {
-        font: '16px Arial',
-        fill: '#ffffff'
-    });
-    textContainer.add(this.comicsText);
-
     // Add text to display debug information for the hovered object
-    this.hoveredObjectText = this.add.text(0, 80, 'Hovered Object: None', {
+    this.hoveredObjectText = this.add.text(0, 60, 'Hovered Object: None', {
         font: '16px Arial',
         fill: '#ffffff'
     });
@@ -289,19 +272,6 @@ function create() {
     });
     textContainer.add(this.cursorCoordsText);
 
-    // Add text to display the backward movement status
-    this.backwardText = this.add.text(0, 140, 'Going Backward: No', {
-        font: '16px Arial',
-        fill: '#ffffff'
-    });
-    textContainer.add(this.backwardText);
-
-    this.vertexDebugText = this.add.text(0, 120, 'Vertex: None', {
-        font: '16px Arial',
-        fill: '#ff0000'
-    });
-    textContainer.add(this.vertexDebugText);
-
     // Store the text container for toggling visibility later
     this.textContainer = textContainer;
     this.textContainer.setVisible(debugMode); // Show/hide other debug text
@@ -312,12 +282,6 @@ function create() {
 
     // Create a group for projectiles
     projectiles = this.physics.add.group();
-
-    // Ensure projectiles is initialized before accessing its children
-    if (!projectiles) {
-        console.error("Projectiles group is not initialized.");
-        return;
-    }
 
     // Create a cursor as a small empty circle with a red border
     cursorIcon = this.add.graphics();
@@ -358,10 +322,7 @@ function create() {
             return false;
         });
 
-        if (hoveredObject) {
-            // Update the debug text with the hovered object's details
-            this.hoveredObjectText.setText(`Hovered Object: ${hoveredObject.type}\nDescription: ${hoveredObject.description}`);
-        } else {
+        if (!hoveredObject) {
             // Reset the debug text if no object is hovered
             this.hoveredObjectText.setText('Hovered Object: None');
         }
@@ -406,24 +367,6 @@ function create() {
                 repeat: -1,
                 ease: 'Sine.easeInOut'
             });
-        }
-
-        // Check if the cursor is near any vertex
-        let vertexFound = false;
-        entities.forEach(entity => {
-            if (entity.vertices) {
-                entity.vertices.forEach(vertex => {
-                    const distance = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, vertex.x, vertex.y);
-                    if (distance <= 10) { // If the cursor is within 10 pixels of the vertex
-                        this.vertexDebugText.setText(`Vertex: X: ${vertex.x}, Y: ${vertex.y}`);
-                        vertexFound = true;
-                    }
-                });
-            }
-        });
-
-        if (!vertexFound) {
-            this.vertexDebugText.setText('Vertex: None');
         }
     });
 
@@ -773,8 +716,6 @@ function create() {
         const bodyHeight = Phaser.Math.Between(25, 35); // Random height for the body
         const headRadius = Phaser.Math.Between(8, 12); // Random radius for the head
 
-        
-
         const body = this.add.ellipse(0, 0, bodyWidth, bodyHeight, 0x00ff00); // Oval for the body
         const head = this.add.circle(0, -bodyHeight / 2 - headRadius / 2, headRadius, null); // Circle for the head
         // 
@@ -934,38 +875,78 @@ function create() {
         muteButton.setText(this.sound.mute ? 'Unmute' : 'Mute'); // Update button text
     });
 
-    // Update the logic to check if entities are partially in the camera view
+    // Adjust the logic in loadEntitiesInView to expand the camera bounds for collision preparation
     const loadEntitiesInView = () => {
         const cameraBounds = this.cameras.main.worldView;
 
+        // Expand the camera bounds slightly to ensure entities near the edges are fully loaded
+        const expandedBounds = new Phaser.Geom.Rectangle(
+            cameraBounds.x - 200, // Expand 100 pixels to the left
+            cameraBounds.y - 200, // Expand 100 pixels to the top
+            cameraBounds.width + 400, // Expand 200 pixels in width
+            cameraBounds.height + 400 // Expand 200 pixels in height
+        );
+
         entities.forEach(entity => {
-            if (entity.polygon) {
-                const isPartiallyInView = entity.polygon.points.some(point =>
-                    cameraBounds.contains(point.x, point.y)
+            if (entity.vertices) {
+                const isPartiallyInView = entity.vertices.some(vertex =>
+                    expandedBounds.contains(vertex.x, vertex.y)
                 );
 
                 if (isPartiallyInView && !entity.graphics) {
+                    if (entity.type === 'person') {
+                        return; // Skip processing this entity
+                    }
                     // Create graphics for entities entering the view
                     const entityGraphics = this.add.graphics();
                     entityGraphics.beginPath();
 
-                    const firstVertex = entity.polygon.points[0];
+                    // Move to the first vertex
+                    const firstVertex = entity.vertices[0];
                     entityGraphics.moveTo(firstVertex.x, firstVertex.y);
 
-                    entity.polygon.points.forEach(vertex => {
+                    // Draw lines to the remaining vertices
+                    entity.vertices.forEach(vertex => {
                         entityGraphics.lineTo(vertex.x, vertex.y);
                     });
 
+                    // Close the path and fill the shape
                     entityGraphics.closePath();
                     entityGraphics.fillStyle(0x808080, 1); // Gray color for entities
                     entityGraphics.fillPath();
                     this.mapContainer.add(entityGraphics);
 
-                    entity.graphics = entityGraphics; // Store the graphics reference
+                    // Add red dots on each vertex
+                    const dots = [];
+                    entity.vertices.forEach(vertex => {
+                        const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
+                        dot.setDepth(2); // Ensure the dot is above the entity
+                        this.mapContainer.add(dot);
+                        dots.push(dot);
+                    });
+
+                    // Store the graphics and dots for toggling visibility
+                    entity.graphics = entityGraphics;
+                    entity.dots = dots;
+
+                    // Store the entity for manual collision handling
+                    entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
                 } else if (!isPartiallyInView && entity.graphics) {
                     // Remove graphics for entities leaving the view
                     entity.graphics.destroy();
                     entity.graphics = null;
+                    if (entity.dots) {
+                        entity.dots.forEach(dot => dot.destroy());
+                        entity.dots = null;
+                    }
+                }
+            }
+
+            // Handle manual collision detection with entities
+            if (entity.polygon && expandedBounds.contains(entity.polygon.points[0].x, entity.polygon.points[0].y)) {
+                const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
+                if (checkPolygonCollision(rotatedShape, entity.polygon)) {
+                    handleEntityCollision.call(this, entity);
                 }
             }
         });
@@ -1079,9 +1060,6 @@ function update(time, delta) {
         }
     }
 
-    // Update backward movement text
-    this.backwardText.setText(`Going Backward: ${goingBackward ? 'Yes' : 'No'}`);
-
     // Regenerate balance quickly when stopped
     if (momentum === 0 && !(this.cursors.down.isDown || this.wasd.down.isDown)) {
         if (balanceMeter > 0) {
@@ -1098,9 +1076,6 @@ function update(time, delta) {
 
     // Update the balance indicator
     updateBalanceIndicator.call(this);
-
-    // Update the balance meter text
-    this.balanceText.setText(`Balance: ${Math.floor(balanceMeter)}`);
 
     // Update the player's coordinates text
     this.coordsText.setText(`X: ${Math.floor(player.x)}, Y: ${Math.floor(player.y)}`);
@@ -1164,7 +1139,7 @@ function update(time, delta) {
                     );
 
                     if (checkRectanglePolygonCollision(projectileBounds, entity.polygon) && entity.type !== 'road' && entity.type !== 'tree') {
-                        console.log(`Projectile collided with: ${entity.type}, Description: ${entity.description}`);
+                        console.log(`Projectile collided with: ${entity.type}`);
                         projectile.destroy(); // Destroy the projectile
                     }
                 }
@@ -1181,7 +1156,6 @@ function update(time, delta) {
                     );
 
                     if (checkEllipsePolygonCollision(personBounds, entity.polygon)) {
-                        // console.log(`Person collided with: ${entity.type}, Description: ${entity.description}`);
                         // Handle person collision with the entity, move them away from the entity so they can continue moving towards their destination..  People shouldn't collide on trees or roads though
                         if (entity.type !== 'tree' && entity.type !== 'road') {
                             const searchRadius = 200; // Radius to search for unoccupied space
@@ -1252,29 +1226,6 @@ function update(time, delta) {
         player.collisionGraphics.setVisible(true); // Make the collision graphics invisible to the player
         player.collisionGraphics.closePath();
         player.collisionGraphics.strokePath();
-    }
-
-    // Update vertex debug text
-    let vertexFound = false;
-    entities.forEach(entity => {
-        if (entity.vertices) {
-            entity.vertices.forEach(vertex => {
-                const distance = Phaser.Math.Distance.Between(
-                    this.input.activePointer.worldX,
-                    this.input.activePointer.worldY,
-                    vertex.x,
-                    vertex.y
-                );
-                if (distance <= 10) { // If the cursor is within 10 pixels of the vertex
-                    this.vertexDebugText.setText(`Vertex: X: ${vertex.x}, Y: ${vertex.y}`);
-                    vertexFound = true;
-                }
-            });
-        }
-    });
-
-    if (!vertexFound) {
-        this.vertexDebugText.setText('Vertex: None');
     }
 
     // Debug mode: Show collision boundaries for People, Player, Projectiles, and Entities
@@ -1458,7 +1409,6 @@ function update(time, delta) {
             if (comics < maxComics) {
                 this.sound.play('comicPickup'); // Play comicPickup sound
                 comics = maxComics; // Refill comics
-                this.comicsText.setText(`Comics: ${comics}`); // Update the comic count display
                 this.updateComicInventory(); // Refresh the comics display
             }
         }
