@@ -57,5 +57,25 @@ export default class MenuScene extends Phaser.Scene {
             this.sound.play('pressStart'); // Play pressStart sound
             this.scene.start('DialogueScene'); // Transition to the dialogue screen
         });
+
+        // Add an Instructions button
+        const instructionsText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, 'Instructions', {
+            font: '24px PressStart2P',
+            fill: '#ffffff',
+            shadow: {
+                offsetX: 2,
+                offsetY: 2,
+                color: '#000000',
+                blur: 0,
+                stroke: true,
+                fill: true
+            }
+        }).setOrigin(0.5);
+
+        // Add interactivity to the Instructions button
+        instructionsText.setInteractive().on('pointerdown', () => {
+            this.sound.play('pressStart'); // Play pressStart sound
+            this.scene.start('InstructionsScene'); // Transition to the instructions screen
+        });
     }
 }

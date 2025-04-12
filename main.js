@@ -1,5 +1,7 @@
 import MenuScene from './menu.js';
 import DialogueScene from './dialogue.js'; // Import the new DialogueScene
+import InstructionsScene from './instructions.js';
+import GameOverScene from './gameOverScene.js';
 import { entities } from './entities.js';
 import { getRandomName } from './utils.js'; // Import utility for generating random names
 
@@ -16,7 +18,7 @@ const config = {
         }
     },
     pixelArt: true,
-    scene: [MenuScene, DialogueScene, { key: 'MainScene', preload, create, update }],
+    scene: [MenuScene, InstructionsScene, DialogueScene, GameOverScene, { key: 'MainScene', preload, create, update }],
 };
 
 const game = new Phaser.Game(config);
@@ -564,75 +566,11 @@ function create() {
         loop: true
     });
 
-    // Add a function to end the game
+    // Define the endGame function to handle game over logic
     this.endGame = (won) => {
         this.scene.pause(); // Pause the game
-        backgroundMusic.stop(); // Stop the background music
-        this.sound.play('gameOver'); // Play gameOver sound
-        const message = won ? 'You Win!' : 'Time\'s Up!';
-        const finalScore = `Final Score: ${score}`;
-
-        // Display the end game message
-        this.add.text(this.scale.width / 2, this.scale.height / 2 - 40, message, {
-            font: '32px PressStart2P',
-            fill: won ? '#FFFFFF' : '#F0F0F0',
-            shadow: {
-                offsetX: 2,
-                offsetY: 2,
-                color: '#000000',
-                blur: 0,
-                stroke: true,
-                fill: true
-            }
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(100); // Ensure the text is on the top layer
-
-        // Display the final score
-        this.add.text(this.scale.width / 2, this.scale.height / 2 + 10, finalScore, {
-            font: '20px PressStart2P',
-            fill: '#FFFFFF',
-            shadow: {
-                offsetX: 1,
-                offsetY: 1,
-                color: '#000000',
-                blur: 0,
-                stroke: true,
-                fill: true
-            }
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
-
-        // Add a "Restart" button
-        const restartButton = this.add.text(this.scale.width / 2, this.scale.height / 2 + 60, 'Restart', {
-            font: '20px PressStart2P',
-            fill: '#FFFFFF',
-            shadow: {
-                offsetX: 2,
-                offsetY: 2,
-                color: '#000000',
-                blur: 0,
-                stroke: true,
-                fill: true
-            }
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
-
-        // Add interactivity to the restart button
-        restartButton.setInteractive().on('pointerdown', () => {
-            this.sound.play('pressStart'); // Play pressStart sound
-            console.log('Restart')
-            // Reset all variables to their initial defaults
-            score = 0;
-            comics = 10;
-            momentum = 0;
-            balanceMeter = 0;
-            this.timeLeft = this.maxTime;
-
-            // Clear all active tweens and timers to prevent freezing
-            this.tweens.killAll();
-            this.time.removeAllEvents();
-
-            // Transition to the dialogue screen
-            this.scene.stop('MainScene');
-            this.scene.start('DialogueScene');
-        });
+        this.sound.stopAll(); // Stop all sounds
+        this.scene.start('GameOverScene', { score }); // Transition to the GameOverScene with the final score
     };
 
     // Add a destination point
@@ -995,6 +933,46 @@ function create() {
         this.sound.mute = !this.sound.mute; // Toggle mute
         muteButton.setText(this.sound.mute ? 'Unmute' : 'Mute'); // Update button text
     });
+
+    // Update the logic to check if entities are partially in the camera view
+    const loadEntitiesInView = () => {
+        const cameraBounds = this.cameras.main.worldView;
+
+        entities.forEach(entity => {
+            if (entity.polygon) {
+                const isPartiallyInView = entity.polygon.points.some(point =>
+                    cameraBounds.contains(point.x, point.y)
+                );
+
+                if (isPartiallyInView && !entity.graphics) {
+                    // Create graphics for entities entering the view
+                    const entityGraphics = this.add.graphics();
+                    entityGraphics.beginPath();
+
+                    const firstVertex = entity.polygon.points[0];
+                    entityGraphics.moveTo(firstVertex.x, firstVertex.y);
+
+                    entity.polygon.points.forEach(vertex => {
+                        entityGraphics.lineTo(vertex.x, vertex.y);
+                    });
+
+                    entityGraphics.closePath();
+                    entityGraphics.fillStyle(0x808080, 1); // Gray color for entities
+                    entityGraphics.fillPath();
+                    this.mapContainer.add(entityGraphics);
+
+                    entity.graphics = entityGraphics; // Store the graphics reference
+                } else if (!isPartiallyInView && entity.graphics) {
+                    // Remove graphics for entities leaving the view
+                    entity.graphics.destroy();
+                    entity.graphics = null;
+                }
+            }
+        });
+    };
+
+    // Call the function in the update loop
+    this.events.on('update', loadEntitiesInView);
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
@@ -1706,7 +1684,7 @@ function handleEntityCollision(entity) {
             { x: playerBounds.left, y: playerBounds.bottom },
             { x: playerBounds.right, y: playerBounds.bottom }
         ];
-
+        
         // Count the number of corners inside the tree polygon
         const cornersInside = corners.filter(corner =>
             Phaser.Geom.Polygon.Contains(entity.polygon, corner.x, corner.y)
