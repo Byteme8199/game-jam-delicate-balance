@@ -24,9 +24,10 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
+let numCars = 0; // Number of cars in the game
 let balanceMeter = 0; // Balance meter value
-let startingX = 2873; // Example starting X position, 9560 comic store
-let startingY = 3022; // Example starting Y position, 5841 comic store
+let startingX = 5845; // Example starting X position, 9560 comic store
+let startingY = 6447; // Example starting Y position, 5841 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
@@ -53,6 +54,7 @@ let debugMode = false; // Flag to enable debug mode, set to false by default
 let minimap; // Declare minimap globally
 let people = []; // Declare people array globally
 let minimapPeopleIndicators = []; // Declare minimapPeopleIndicators globally
+let cars = []; // Declare cars array globally
 
 const globalScale = 10;
 
@@ -214,7 +216,7 @@ function create() {
     const textContainer = this.add.container(10, 10).setScrollFactor(0);
 
     // Add text to display the player's coordinates
-    this.coordsText = this.add.text(0, 20, 'X: 0, Y: 0', {
+    this.coordsText = this.add.text(0, 20, '{ x: 0, y: 0 },', {
         font: '16px Arial',
         fill: '#ffffff'
     });
@@ -923,6 +925,30 @@ function create() {
                         dot.setDepth(2); // Ensure the dot is above the entity
                         this.mapContainer.add(dot);
                         dots.push(dot);
+
+                        // Add a hover event to display the coordinates of the dot
+                        dot.setInteractive();
+                        dot.on('pointerover', () => {
+                            this.hoveredObjectText.setText(`Hovered Object: Dot at X: ${Math.floor(dot.x)}, Y: ${Math.floor(dot.y)}`);
+                        });
+                        dot.on('pointerout', () => {
+                            this.hoveredObjectText.setText('Hovered Object: None');
+                        });
+
+                        dot.on('pointerdown', () => {
+                            const coordinates = `{ x: ${Math.floor(dot.x)}, y: ${Math.floor(dot.y)} },`;
+                            const textarea = document.createElement('textarea');
+                            textarea.value = coordinates;
+                            document.body.appendChild(textarea);
+                            textarea.select();
+                            try {
+                                document.execCommand('copy');
+                                console.log(`Copied to clipboard: ${coordinates}`);
+                            } catch (err) {
+                                console.error('Failed to copy coordinates to clipboard', err);
+                            }
+                            document.body.removeChild(textarea);
+                        });
                     });
 
                     // Store the graphics and dots for toggling visibility
@@ -954,6 +980,9 @@ function create() {
 
     // Call the function in the update loop
     this.events.on('update', loadEntitiesInView);
+
+    // Create cars
+    createCars.call(this);
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
@@ -1459,6 +1488,9 @@ function update(time, delta) {
             );
         }
     }
+
+    // Update cars
+    updateCars.call(this, delta);
 }
 
 // Updates the balance indicator graphics based on the player's balance meter.
@@ -1880,4 +1912,115 @@ function checkEllipsePolygonCollision(ellipse, polygon) {
     }
 
     return false; // No intersection detected
+}
+
+/**
+ * Generates a random point inside a polygon.
+ * @param {Phaser.Geom.Polygon} polygon - The polygon to sample points from.
+ * @returns {{x: number, y: number}} A random point inside the polygon.
+ */
+function getRandomPointInPolygon(polygon) {
+    const bounds = Phaser.Geom.Polygon.GetAABB(polygon); // Get the bounding box of the polygon
+    let point;
+
+    do {
+        point = {
+            x: Phaser.Math.Between(bounds.x, bounds.x + bounds.width),
+            y: Phaser.Math.Between(bounds.y, bounds.y + bounds.height)
+        };
+    } while (!Phaser.Geom.Polygon.Contains(polygon, point.x, point.y));
+
+    return point;
+}
+
+function createCars() {
+    for (let i = 0; i < numCars; i++) {
+        // Randomly select a road entity
+        const roadEntities = entities.filter(entity => entity.type === 'road');
+        if (roadEntities.length === 0) {
+            console.warn('No road entities found for car creation.');
+            return;
+        }
+
+        const randomRoad = Phaser.Utils.Array.GetRandom(roadEntities);
+
+        // Randomly position the car on the road
+        const start = getRandomPointInPolygon(new Phaser.Geom.Polygon(randomRoad.vertices));
+
+        // Assign a random destination on another road
+        let destinationRoad;
+        do {
+            destinationRoad = Phaser.Utils.Array.GetRandom(roadEntities);
+        } while (destinationRoad === randomRoad);
+
+        const destination = getRandomPointInPolygon(new Phaser.Geom.Polygon(destinationRoad.vertices));
+
+        // Create a car entity
+        const car = {
+            type: 'movingCar',
+            x: start.x,
+            y: start.y,
+            destination: { x: destination.x, y: destination.y },
+            speed: 100, // Base speed of the car
+            graphics: null // Placeholder for car graphics
+        };
+
+        // Create car graphics (scaled up by 5)
+        car.graphics = this.add.rectangle(car.x, car.y, 100, 50, 0xff0000); // Red rectangle for the car
+        this.physics.world.enable(car.graphics);
+        car.graphics.body.setCollideWorldBounds(true);
+
+        cars.push(car);
+    }
+}
+
+function updateCars(delta) {
+    cars.forEach(car => {
+        if (!car.destination) return;
+
+        // Calculate direction to destination
+        const angleToDestination = Phaser.Math.Angle.Between(car.x, car.y, car.destination.x, car.destination.y);
+        const angleDifference = Phaser.Math.Angle.Wrap(angleToDestination - car.graphics.rotation);
+
+        // Rotate the car towards the destination only if the angle difference is significant
+        const rotationSpeed = 0.05; // Adjust rotation speed
+        if (Math.abs(angleDifference) > 0.1) { // Avoid small unnecessary rotations
+            car.graphics.rotation += Math.sign(angleDifference) * rotationSpeed;
+        }
+
+        // Move the car forward in the direction it is facing
+        const velocityX = Math.cos(car.graphics.rotation) * car.speed * (delta / 1000);
+        const velocityY = Math.sin(car.graphics.rotation) * car.speed * (delta / 1000);
+        const newX = car.x + velocityX;
+        const newY = car.y + velocityY;
+
+        // Check if the new position is on a road
+        const isOnRoad = entities.some(entity => {
+            if (entity.type === 'road') {
+                const roadPolygon = new Phaser.Geom.Polygon(entity.vertices);
+                return Phaser.Geom.Polygon.Contains(roadPolygon, newX, newY);
+            }
+            return false;
+        });
+
+        if (isOnRoad) {
+            // Update car position if it's on a road
+            car.x = newX;
+            car.y = newY;
+            car.graphics.setPosition(car.x, car.y);
+        } else {
+            // Assign a new random destination if the car goes off-road
+            const roadEntities = entities.filter(entity => entity.type === 'road');
+            const newDestinationRoad = Phaser.Utils.Array.GetRandom(roadEntities);
+            car.destination = getRandomPointInPolygon(new Phaser.Geom.Polygon(newDestinationRoad.vertices));
+        }
+
+        // Check if the car has reached its destination
+        if (Phaser.Math.Distance.Between(car.x, car.y, car.destination.x, car.destination.y) < 5) {
+            // Assign a new random destination
+            const roadEntities = entities.filter(entity => entity.type === 'road');
+            const newDestinationRoad = Phaser.Utils.Array.GetRandom(roadEntities);
+            car.destination = getRandomPointInPolygon(new Phaser.Geom.Polygon(newDestinationRoad.vertices));
+        }
+    });
 }
