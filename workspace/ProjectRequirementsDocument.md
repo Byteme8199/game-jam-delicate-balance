@@ -44,3 +44,13 @@ This project is a PhaserJS-based game designed for a game jam. The theme is "Del
 - Week 1: Project setup and initial development.
 - Week 2: Core mechanics and asset integration.
 - Week 3: UI, testing, and final submission.
+
+
+### Feature Requests
+FR0001 - Add 20 dynamically created car entities that are being driven throughout town. On creation they are given another location destination to be driving towards that can be correctly 'path'ed to with the available roads.  They can only drive on 'road' entities.  They should slow down before hitting person entities.  If the player hits a moving car, make the player fall over.  If we can make the cars follow basic traffic law and patterns, even better.
+
+FR0002 - Implement power-ups that when moved over change the gameplay.  For instance, a temporary speed boost, 10 seconds of infinite ammo (comics), ghost mode (no collision detection for the player), Micro Machine mode, where you shrink but go really fast.  Stuff like that.  These pickups should be placed in randomized locations for every play through
+
+FR0003 - Create 'People' Spawners throughout town.  These will be randomly selected buildings that 'spawn' newly created people entities, which should make the world seem more alive.
+
+FR0004 - Create additional comic book refill stations at every 'intersection' road entity.
