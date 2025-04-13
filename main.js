@@ -60,7 +60,6 @@ const globalScale = 10;
 
 let coordinateArray = []; // Array to store coordinates
 let lastPlayerPersonCollisionTime = 0; // Track the last collision time globally
-let lastInputTime = 0; // Tracks the last time input was detected globally
 
 // Sets the number of comics the player has, ensuring it stays within valid bounds.
 // Updates the comic count display and inventory UI.
@@ -515,36 +514,6 @@ function create() {
     this.endGame = (won) => {
         this.scene.pause(); // Pause the game
         this.sound.stopAll(); // Stop all sounds
-        // // Reset all global variables to their initial values
-        player = null;
-        numCars = 20;
-        balanceMeter = 0;
-        startingX = 9560;
-        startingY = 5633;
-        balanceThresholdLeft = -100;
-        balanceThresholdRight = 100;
-        projectiles = null;
-        cursorIcon = null;
-        score = 0;
-        comics = 20;
-        maxComics = 20;
-        maxTime = 180;
-        momentum = 0;
-        refillTween = null;
-        cursorTween = null;
-        canMoveForward = true;
-        balanceIndicator = null;
-        comicCovers = [];
-        mouseMoveTimer = null;
-        goingBackward = false;
-        debugMode = false;
-        minimap = null;
-        people = [];
-        minimapPeopleIndicators = [];
-        cars = [];
-        coordinateArray = [];
-        lastPlayerPersonCollisionTime = 0;
-        lastInputTime = 0;        
         this.scene.start('GameOverScene', { score }); // Transition to the GameOverScene with the final score
     };
 
@@ -1034,16 +1003,6 @@ function update(time, delta) {
     const baseBackwardSpeed = 100; // Base speed for moving backward
 
     const backwardSpeed = baseBackwardSpeed;
-
-    // Check for input and update the last input time
-    if (
-        this.cursors.up.isDown || this.cursors.down.isDown ||
-        this.cursors.left.isDown || this.cursors.right.isDown ||
-        this.wasd.up.isDown || this.wasd.down.isDown ||
-        this.wasd.left.isDown || this.wasd.right.isDown
-    ) {
-        lastInputTime = time; // Update the last input time
-    }
 
     // Prevent movement if the player is off balance or in the fall down state
     const isOffBalance = balanceMeter >= balanceThresholdRight || balanceMeter <= balanceThresholdLeft;

@@ -102,7 +102,9 @@ export default class GameOverScene extends Phaser.Scene {
         // Add interactivity to the Menu button
         menuButton.setInteractive().on('pointerdown', () => {
             this.sound.play('pressStart'); // Play pressStart sound
-            this.scene.start('MenuScene'); // Return to the main menu            
+            // just reload the page so everything resets properly
+            window.location.reload(); // Reload the game
+            //this.scene.start('MenuScene'); // Return to the main menu            
         });
     }
 }
