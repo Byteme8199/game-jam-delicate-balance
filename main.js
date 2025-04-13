@@ -45,6 +45,8 @@ function preload() {
     this.load.audio('comicPickup', 'assets/sounds/mixkit-video-game-treasure-2066.wav');
     this.load.audio('outOfAmmo', 'assets/sounds/mixkit-video-game-retro-click-237.wav');
     this.load.audio('gameOver', 'assets/sounds/mixkit-winning-a-coin-video-game-2069.wav');
+
+    this.load.atlas('flares', 'assets/particles/flares.png', 'assets/particles/flares.json');
 }
 
 
@@ -139,6 +141,7 @@ const powerUpTypes = [
     { type: 'DrStrange', sprite: 'DrStrange.png', duration: 10000, effect: function() {
         const rewindInterval = 1000; // Every second
         const rewindAmount = 10; // Add 10 seconds to the timer
+
         const rewindEvent = this.time.addEvent({
             delay: rewindInterval,
             callback: () => {
@@ -147,14 +150,32 @@ const powerUpTypes = [
             repeat: 9 // Run 10 times (10 seconds total)
         });
 
+        const shape2 = new Phaser.Geom.Ellipse(0, 0, 500, 20);
+        // Add a green sparkly magical particle emitter behind the Timer Segments
+        const emitter = this.add.particles(0, 0, 'flares', {
+            frame: { frames: ['green'], cycle: true },
+            blendMode: 'ADD',
+            lifespan: 500,
+            quantity: 4,
+            scale: { start: 0.5, end: 0.1 }
+        });
+        emitter.setPosition(config.width / 2, config.height - 40); // Set the emitter position
+        emitter.addEmitZone({ type: 'random', source: shape2, quantity: 14, total: 100, yoyo: true });
+        // Attach the emitter to the bottom of the camera
+        emitter.setScrollFactor(0); // Ensure it stays fixed relative to the camera
+        emitter.setDepth(2); // Set depth to ensure it appears behind the timer
+
         this.time.delayedCall(10000, () => {
             rewindEvent.remove(); // Ensure the event is cleared after 10 seconds
+            emitter.stop();
         });
     } },
     { type: 'Shadowcat', sprite: 'Shadowcat.png', duration: 10000, effect: function() {
         isIntangible = true; // Enable intangibility
+        player.sprite.setAlpha(0.3);
         this.time.delayedCall(10000, () => {
             isIntangible = false; // Disable intangibility after 10 seconds
+            player.sprite.setAlpha(1);
         });
     } },
     { type: 'Nightcrawler', sprite: 'Nightcrawler.png', duration: 10000, effect: function() {
@@ -745,7 +766,7 @@ function create() {
         )
         .setOrigin(0, 0.5)
         .setScrollFactor(0) // Ensure the progress bar stays fixed relative to the camera
-        .setDepth(2); // Set depth to ensure it appears in front of the comic inventory
+        .setDepth(3); // Set depth to ensure it appears in front of the comic inventory
         this.timerSegments.push(segment);
 
         // Ignore the timer segment in the minimap
@@ -904,6 +925,7 @@ function create() {
     inventoryBackground.fillStyle(0x000000, 0.5); // Semi-transparent black
     inventoryBackground.fillRect(-this.cameras.main.width / 2, -20, this.cameras.main.width, 80); // Full width
     inventoryContainer.add(inventoryBackground);
+    inventoryContainer.setDepth(1); // Ensure it appears above other elements
 
     // Create an array to store the comic inventory sprites
     this.comicInventorySprites = [];
@@ -1663,14 +1685,6 @@ function update(time, delta) {
             indicator.setVisible(false); // Hide in the minimap
         }
     });
-
-    // Update minimapPowerUpIndicators to follow their corresponding power-ups
-    minimapPowerUpIndicators.forEach((indicator, index) => {
-        const powerUp = this.physics.world.bodies.entries.find(body => body.gameObject && body.gameObject.type === 'powerUp' && body.gameObject === indicator.powerUp);
-        if (powerUp) {
-            indicator.setPosition(powerUp.gameObject.x, powerUp.gameObject.y);
-        }
-    });
 }
 
 // Updates the balance indicator graphics based on the player's balance meter.
@@ -2241,10 +2255,13 @@ function spawnPowerUp() {
     const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.25);
     powerUp.type = randomType.type;
     
-    const minimapIndicatorSprite = this.add.sprite(x, y, 'batman_logo').setScale(0.25);
-    minimapIndicatorSprite.setPosition(powerUp.x, powerUp.y);
-    minimapIndicatorSprite.setScrollFactor(0); // Ensure it stays fixed on the minimap
-    minimapPowerUpIndicators.push(minimapIndicatorSprite); // Add to the global array
+    // Add a minimap indicator for the power-up
+    const minimapIndicator = this.add.graphics();
+    minimapIndicator.fillStyle(0xFFFFFF, 1); // White for power-ups
+    minimapIndicator.fillCircle(0, 0, 5); // Small circle for the minimap indicator
+    minimapIndicator.setPosition(x, y);
+    minimapIndicator.setScale(20); // Scale up for visibility
+    minimapPowerUpIndicators.push(minimapIndicator); // Add to the global array
 
     // Remove the minimap indicator when the power-up is collected
     this.physics.add.overlap(player, powerUp, () => {
