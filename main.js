@@ -109,23 +109,27 @@ let lastPlayerPersonCollisionTime = 0; // Track the last collision time globally
 // Add a global toggle for intangibility
 let isIntangible = false;
 let imBatman = false; // Flag to indicate if the player is in Batman mode
+let flashForce = false;
 let minimapPowerUpIndicators = []; // Declare minimapPowerUpIndicators globally
-
+let nightOverlay = null; // Declare nightOverlay globally
 
 // Define the power-up types and their effects
 const powerUpTypes = [
     { type: 'TheFlash', sprite: 'TheFlash.png', duration: 10000, effect: function() { 
         maxMomentum += 100;
-        momentumIncrease = 10; // Increase momentum gain rate
+        momentumIncrease += 10; // Increase momentum gain rate
+        flashForce = true; // Activate flashForce
+        player.sprite.setTint(0xff0000);
         this.time.delayedCall(10000, () => {
             maxMomentum = 300; 
             momentumIncrease = 5; // Reset momentum gain rate
+            flashForce = false; // Reset flashForce
+            player.sprite.clearTint();
         });
     } },
     { type: 'Spiderman', sprite: 'Spiderman.png', duration: 10000, effect: function() { 
         balanceThresholdLeft = -10000000000000000;
         balanceThresholdRight = 10000000000000000; // Temporarily disable balance thresholds
-        balanceMeter = 0; 
         this.time.delayedCall(10000, () => {
             balanceThresholdLeft = -100;
             balanceThresholdRight = 100; 
@@ -216,9 +220,11 @@ const powerUpTypes = [
     } },
     { type: 'Batman', sprite: 'Batman.png', duration: 10000, effect: function() {
         imBatman = true;
+        nightOverlay.setDepth(10); // Ensure it appears above all other elements
         this.time.delayedCall(10000, () => {
             console.log('Batman power-up ended');
             imBatman = false; // Reset the power-up effect
+            nightOverlay.setDepth(-100); // Ensure it appears above all other elements
         });
     } },
     { type: 'Superman', sprite: 'Superman.png', duration: 10000, effect: function() {
@@ -260,6 +266,13 @@ function create() {
     const worldWidth = worldBaseWidth * globalScale;
     const worldHeight = worldBaseHeight * globalScale;
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
+
+    // Add a semi-transparent black overlay to darken the entire map
+    nightOverlay = this.add.graphics();
+    nightOverlay.fillStyle(0x000000, 0.75); // Black color with 75% opacity
+    nightOverlay.fillRect(-worldBaseWidth * globalScale / 2, -worldBaseHeight * globalScale / 2, worldBaseWidth * globalScale, worldBaseHeight * globalScale); // Cover the entire world
+    nightOverlay.setScrollFactor(0); // Ensure it moves with the camera
+    nightOverlay.setDepth(-100); // Ensure it appears above all other elements
 
     // Resize the camera bounds to match the world bounds
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
@@ -1129,6 +1142,30 @@ function create() {
 // Handles interactions with entities and updates the UI.
 function update(time, delta) {
 
+    if(flashForce) {
+        // Add trailing ghost images of the player to represent high speeds
+        const ghostTrail = this.add.group(); // Group to hold ghost images
+        const ghostInterval = 1000; // Interval in milliseconds between ghost images
+        let lastGhostTime = 0;
+
+        if (momentum > maxMomentum * 0.7 && time - lastGhostTime >= ghostInterval) {
+            const ghost = this.add.sprite(player.x, player.y, 'player').setTint(0xff0000);
+            ghost.setAlpha(0.2); // Make the ghost semi-transparent
+            ghost.setRotation(player.rotation); // Match the player's rotation
+            ghostTrail.add(ghost);
+
+            // Fade out and destroy the ghost after a short duration
+            this.tweens.add({
+                targets: ghost,
+                alpha: 0,
+                duration: 300,
+                onComplete: () => ghost.destroy()
+            });
+
+            lastGhostTime = time; // Update the last ghost time
+        }
+    }
+
     // Set transparency for all objects except the background
     this.mapContainer.iterate(child => {
         if (child !== this.background) {
@@ -1356,11 +1393,6 @@ function update(time, delta) {
             });
         }
     });
-
-    // Reset tint if not colliding with any tree
-    if (!isCollidingWithTree) {
-        player.sprite.clearTint();
-    }
 
     // Update the player's collision shape visualization
     if (player.collisionGraphics) {
@@ -1896,7 +1928,9 @@ function handleEntityCollision(entity) {
 
     // Ensure tint is cleared when no collision occurs
     if (!entity || entity.type !== "tree") {
-        player.sprite.clearTint();
+        if(!flashForce) {
+            player.sprite.clearTint();
+        }
     }
 
     if (entity.type !== "road" && entity.type !== "tree") {
@@ -2252,7 +2286,7 @@ function spawnPowerUp() {
     const x = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
     const y = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
 
-    const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.25);
+    const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.25).setDepth(11);
     powerUp.type = randomType.type;
     
     // Add a minimap indicator for the power-up
@@ -2261,6 +2295,7 @@ function spawnPowerUp() {
     minimapIndicator.fillCircle(0, 0, 5); // Small circle for the minimap indicator
     minimapIndicator.setPosition(x, y);
     minimapIndicator.setScale(20); // Scale up for visibility
+    minimapIndicator.setDepth(11); // Ensure it's above other graphics
     minimapPowerUpIndicators.push(minimapIndicator); // Add to the global array
 
     // Remove the minimap indicator when the power-up is collected
