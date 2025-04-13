@@ -49,7 +49,21 @@ This project is a PhaserJS-based game designed for a game jam. The theme is "Del
 ### Feature Requests
 FR0001 - Add 20 dynamically created car entities that are being driven throughout town. On creation they are given another location destination to be driving towards that can be correctly 'path'ed to with the available roads.  They can only drive on 'road' entities.  They should slow down before hitting person entities.  If the player hits a moving car, make the player fall over.  If we can make the cars follow basic traffic law and patterns, even better.
 
-FR0002 - Implement power-ups that when moved over change the gameplay.  For instance, a temporary speed boost, 10 seconds of infinite ammo (comics), ghost mode (no collision detection for the player), Micro Machine mode, where you shrink but go really fast.  Stuff like that.  These pickups should be placed in randomized locations for every play through
+-----------------------------
+
+FR0002 - Implement power-ups that when moved over change the gameplay. These powerups last for 10 seconds. A display of your current powerups will be displayed below your score. The icon for the powerup will fade as the duration for the powerup expires. The world should spawn with X amount of powerups on creation, where X is a initialization variable.  
+
+The following power ups should be created (based on Super Heroes)
+The Flash:  Increases maxMomentum by 100.
+The Punisher: Infinite Comics (and a refill)
+Dr. Strange: The Timer is paused for 10 seconds.
+Shadowcat: No collisions with building, car and people entities.
+Spiderman: Can't fall over.
+Nightcrawler: Teleport to within 100 pixels of the closest destination
+Batman: Makes all powerups on the minimap highlighted and scaled up.
+Superman: Get all of the above power-ups all at once, since Superman is OP
+
+-----------------------------
 
 FR0003 - Create 'People' Spawners throughout town.  These will be randomly selected buildings that 'spawn' newly created people entities, which should make the world seem more alive.
 
