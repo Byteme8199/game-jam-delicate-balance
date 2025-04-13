@@ -52,8 +52,8 @@ function preload() {
 
 const config = {
     type: Phaser.WEBGL,
-    width: 600, // OR window.innerWidth for testing, // Set to window width
-    height: 450, // OR window.innerHeight for Testing, // Set to window height
+    width: 600, // OR window.innerWidth for testing, // Set to window width // 600 is the default
+    height: 450, // OR window.innerHeight for Testing, // Set to window height // 450 is the default
     parent: 'game', // ID of the HTML element to attach the game
     physics: {
         default: 'arcade',
@@ -130,6 +130,7 @@ const powerUpTypes = [
     { type: 'Spiderman', sprite: 'Spiderman.png', duration: 10000, effect: function() { 
         balanceThresholdLeft = -10000000000000000;
         balanceThresholdRight = 10000000000000000; // Temporarily disable balance thresholds
+        
         this.time.delayedCall(10000, () => {
             balanceThresholdLeft = -100;
             balanceThresholdRight = 100; 
@@ -220,7 +221,7 @@ const powerUpTypes = [
     } },
     { type: 'Batman', sprite: 'Batman.png', duration: 10000, effect: function() {
         imBatman = true;
-        nightOverlay.setDepth(10); // Ensure it appears above all other elements
+        nightOverlay.setDepth(1); // Ensure it appears above all other elements
         this.time.delayedCall(10000, () => {
             console.log('Batman power-up ended');
             imBatman = false; // Reset the power-up effect
@@ -269,7 +270,7 @@ function create() {
 
     // Add a semi-transparent black overlay to darken the entire map
     nightOverlay = this.add.graphics();
-    nightOverlay.fillStyle(0x000000, 0.75); // Black color with 75% opacity
+    nightOverlay.fillStyle(0x000033, 0.75); // Dark blue color with 75% opacity
     nightOverlay.fillRect(-worldBaseWidth * globalScale / 2, -worldBaseHeight * globalScale / 2, worldBaseWidth * globalScale, worldBaseHeight * globalScale); // Cover the entire world
     nightOverlay.setScrollFactor(0); // Ensure it moves with the camera
     nightOverlay.setDepth(-100); // Ensure it appears above all other elements
@@ -1149,7 +1150,7 @@ function update(time, delta) {
         let lastGhostTime = 0;
 
         if (momentum > maxMomentum * 0.7 && time - lastGhostTime >= ghostInterval) {
-            const ghost = this.add.sprite(player.x, player.y, 'player').setTint(0xff0000);
+            const ghost = this.add.sprite(player.x, player.y, 'player').setTint(0xffff00);
             ghost.setAlpha(0.2); // Make the ghost semi-transparent
             ghost.setRotation(player.rotation); // Match the player's rotation
             ghostTrail.add(ghost);
@@ -2298,9 +2299,19 @@ function spawnPowerUp() {
     minimapIndicator.setDepth(11); // Ensure it's above other graphics
     minimapPowerUpIndicators.push(minimapIndicator); // Add to the global array
 
+    // Ensure the minimap indicator is ignored in the main camera
+    this.cameras.main.ignore(minimapIndicator);
+
     // Remove the minimap indicator when the power-up is collected
     this.physics.add.overlap(player, powerUp, () => {
         console.log(`Collected power-up: ${powerUp.type}`);
+        // Check if the player already has the power-up active
+        const existingPowerUp = activePowerUps.find(p => p.type === powerUp.type);
+        if (existingPowerUp) {
+            // Remove the existing power-up and restart its effect
+            activePowerUps = activePowerUps.filter(p => p.type !== powerUp.type);
+            console.log(`Restarting power-up: ${powerUp.type}`);
+        }
         activePowerUps.push({ type: powerUp.type, duration: randomType.duration, effect: randomType.effect });
         powerUp.destroy();
 
