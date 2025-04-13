@@ -5,6 +5,47 @@ import GameOverScene from './gameOverScene.js';
 import { entities } from './entities.js';
 import { getRandomName } from './utils.js'; // Import utility for generating random names
 
+
+// Preloads assets such as images for the player, background, and comic covers.
+function preload() {
+    this.load.image('player', 'assets/player.png'); // Placeholder asset
+    this.load.image('background', 'assets/background.png'); // Background image
+
+    // Load textures for collidable objects
+    this.load.image('balanceIndicator', 'assets/balanceIndicator.png');
+
+    // Load multiple comic cover images
+    this.load.image('comic1', 'assets/comic1.png');
+    this.load.image('comic2', 'assets/comic2.png');
+    this.load.image('comic3', 'assets/comic3.png');
+    this.load.image('comic4', 'assets/comic4.png');
+
+    this.load.image('Batman', 'assets/Batman.png');
+    this.load.image('DrStrange', 'assets/DrStrange.png');
+    this.load.image('Nightcrawler', 'assets/Nightcrawler.png');
+    this.load.image('Shadowcat', 'assets/Shadowcat.png');
+    this.load.image('Superman', 'assets/Superman.png');
+    this.load.image('TheFlash', 'assets/TheFlash.png');
+    this.load.image('ThePunisher', 'assets/ThePunisher.png');
+    this.load.image('Spiderman', 'assets/Spiderman.png');
+
+    // Store the keys in the comicCovers array
+    comicCovers = ['comic1', 'comic2', 'comic3', 'comic4'];
+
+    this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
+    this.load.audio('runIntoEntityCar', 'assets/sounds/mixkit-explainer-video-game-alert-sweep-236.wav');
+    this.load.audio('backgroundMusic', 'assets/sounds/mixkit-game-level-music-689.wav');
+    this.load.audio('runIntoEntityBuilding', 'assets/sounds/mixkit-mechanical-crate-pick-up-3154.wav');
+    this.load.audio('throwComic', 'assets/sounds/mixkit-player-jumping-in-a-video-game-2043.wav');
+    this.load.audio('fallOver', 'assets/sounds/mixkit-player-losing-or-failing-2042.wav');
+    this.load.audio('crashIntoPerson', 'assets/sounds/mixkit-video-game-blood-pop-2361.wav');
+    this.load.audio('comicReceive', 'assets/sounds/mixkit-video-game-health-recharge-2837.wav');
+    this.load.audio('comicPickup', 'assets/sounds/mixkit-video-game-treasure-2066.wav');
+    this.load.audio('outOfAmmo', 'assets/sounds/mixkit-video-game-retro-click-237.wav');
+    this.load.audio('gameOver', 'assets/sounds/mixkit-winning-a-coin-video-game-2069.wav');
+}
+
+
 const config = {
     type: Phaser.WEBGL,
     width: 600, // OR window.innerWidth for testing, // Set to window width
@@ -24,7 +65,7 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
-let numCars = 20; // Number of cars in the game
+let numCars = 0; // Number of cars in the game
 let balanceMeter = 0; // Balance meter value
 let startingX = 9560; // Example starting X position, 9560 comic store
 let startingY = 5633; // Example starting Y position, 5841 comic store
@@ -37,8 +78,8 @@ let comics = 20; // Player starts with 10 comics
 let maxComics = 20; // Maximum number of comics
 let maxTime = 180; // Maximum time in seconds
 let momentum = 0; // Player's forward momentum
-const maxMomentum = 300; // Maximum momentum
-const momentumIncrease = 5; // Momentum increase per frame when pedaling
+let maxMomentum = 300; // Maximum momentum
+let momentumIncrease = 5; // Momentum increase per frame when pedaling
 const glideFriction = 5; // Friction applied when gliding
 let refillTween; // Tween for the pulsating effect
 let cursorTween; // Tween for the cursor's pulsating effect
@@ -61,6 +102,113 @@ const globalScale = 10;
 let coordinateArray = []; // Array to store coordinates
 let lastPlayerPersonCollisionTime = 0; // Track the last collision time globally
 
+// Add a global toggle for intangibility
+let isIntangible = false;
+
+// Define the power-up types and their effects
+const powerUpTypes = [
+    { type: 'TheFlash', sprite: 'TheFlash.png', duration: 10000, effect: function() { 
+        maxMomentum += 100;
+        momentumIncrease = 10; // Increase momentum gain rate
+        this.time.delayedCall(10000, () => {
+            maxMomentum = 300; 
+            momentumIncrease = 5; // Reset momentum gain rate
+        });
+    } },
+    { type: 'Spiderman', sprite: 'Spiderman.png', duration: 10000, effect: function() { 
+        balanceThresholdLeft = -10000000000000000;
+        balanceThresholdRight = 10000000000000000; // Temporarily disable balance thresholds
+        balanceMeter = 0; 
+        this.time.delayedCall(10000, () => {
+            balanceThresholdLeft = -100;
+            balanceThresholdRight = 100; 
+        });
+    } },
+    { type: 'ThePunisher', sprite: 'ThePunisher.png', duration: 10000, effect: function() {
+        this.setComics(maxComics); // Refill comics to max
+        this.extraComicsActive = true; // Activate infinite comics
+        this.time.delayedCall(10000, () => {
+            this.extraComicsActive = false; // Deactivate infinite comics after 10 seconds
+        });
+    } },
+    { type: 'DrStrange', sprite: 'DrStrange.png', duration: 10000, effect: function() {
+        const rewindInterval = 1000; // Every second
+        const rewindAmount = 10; // Add 10 seconds to the timer
+        const rewindEvent = this.time.addEvent({
+            delay: rewindInterval,
+            callback: () => {
+                this.timeLeft = Math.min(this.timeLeft + rewindAmount, maxTime); // Add time but cap at maxTime
+            },
+            repeat: 9 // Run 10 times (10 seconds total)
+        });
+
+        this.time.delayedCall(10000, () => {
+            rewindEvent.remove(); // Ensure the event is cleared after 10 seconds
+        });
+    } },
+    { type: 'Shadowcat', sprite: 'Shadowcat.png', duration: 10000, effect: function() {
+        isIntangible = true; // Enable intangibility
+        this.time.delayedCall(10000, () => {
+            isIntangible = false; // Disable intangibility after 10 seconds
+        });
+    } },
+    { type: 'Nightcrawler', sprite: 'Nightcrawler.png', duration: 10000, effect: function() {
+        if (this.currentDestination) {
+            const searchRadius = 200; // Radius to search around the destination
+            const stepAngle = Math.PI / 16; // Angle step for radial search
+
+            let safeX = this.currentDestination.x;
+            let safeY = this.currentDestination.y;
+
+            for (let r = 0; r <= searchRadius; r += 5) { // Increment radius in steps of 5
+                for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
+                    const testX = this.currentDestination.x + r * Math.cos(theta);
+                    const testY = this.currentDestination.y + r * Math.sin(theta);
+
+                    // Check if the test position collides with any entity
+                    const isColliding = entities.some(entity => {
+                        if (entity.polygon) {
+                            const testBounds = new Phaser.Geom.Circle(testX, testY, 100); // Small circle for collision check
+                            return checkCirclePolygonCollision(testBounds, entity.polygon);
+                        }
+                        return false;
+                    });
+
+                    if (!isColliding) {
+                        safeX = testX;
+                        safeY = testY;
+                        break;
+                    }
+                }
+                if (safeX !== this.currentDestination.x || safeY !== this.currentDestination.y) {
+                    break; // Exit the loop if a safe position is found
+                }
+            }
+
+            player.setPosition(safeX, safeY); // Teleport player to the safe position
+        }
+    } },
+    { type: 'Batman', sprite: 'Batman.png', duration: 10000, effect: function() {
+        this.cameras.main.flash(500, 0, 0, 0); // Flash the screen
+        this.time.delayedCall(10000, () => {
+            console.log('Batman power-up ended');
+        });
+    } },
+    { type: 'Superman', sprite: 'Superman.png', duration: 10000, effect: function() {
+        player.body.setVelocity(0, 0); // Stop player movement
+        player.body.setImmovable(true); // Make player invincible
+        this.time.delayedCall(10000, () => {
+            player.body.setImmovable(false); // Re-enable movement
+        });
+    } }
+];
+
+// Initialize active power-ups
+let activePowerUps = [];
+
+// Add an initialization variable for the number of power-ups to spawn
+const initialPowerUps = 100; // Default number of power-ups to spawn at game start
+
 // Sets the number of comics the player has, ensuring it stays within valid bounds.
 // Updates the comic count display and inventory UI.
 function setComics(value) {
@@ -68,36 +216,6 @@ function setComics(value) {
     if (this.updateComicInventory) {
         this.updateComicInventory();
     }
-}
-
-// Preloads assets such as images for the player, background, and comic covers.
-function preload() {
-    this.load.image('player', 'assets/player.png'); // Placeholder asset
-    this.load.image('background', 'assets/background.png'); // Background image
-
-    // Load textures for collidable objects
-    this.load.image('balanceIndicator', 'assets/balanceIndicator.png');
-
-    // Load multiple comic cover images
-    this.load.image('comic1', 'assets/comic1.png');
-    this.load.image('comic2', 'assets/comic2.png');
-    this.load.image('comic3', 'assets/comic3.png');
-    this.load.image('comic4', 'assets/comic4.png');
-
-    // Store the keys in the comicCovers array
-    comicCovers = ['comic1', 'comic2', 'comic3', 'comic4'];
-
-    this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
-    this.load.audio('runIntoEntityCar', 'assets/sounds/mixkit-explainer-video-game-alert-sweep-236.wav');
-    this.load.audio('backgroundMusic', 'assets/sounds/mixkit-game-level-music-689.wav');
-    this.load.audio('runIntoEntityBuilding', 'assets/sounds/mixkit-mechanical-crate-pick-up-3154.wav');
-    this.load.audio('throwComic', 'assets/sounds/mixkit-player-jumping-in-a-video-game-2043.wav');
-    this.load.audio('fallOver', 'assets/sounds/mixkit-player-losing-or-failing-2042.wav');
-    this.load.audio('crashIntoPerson', 'assets/sounds/mixkit-video-game-blood-pop-2361.wav');
-    this.load.audio('comicReceive', 'assets/sounds/mixkit-video-game-health-recharge-2837.wav');
-    this.load.audio('comicPickup', 'assets/sounds/mixkit-video-game-treasure-2066.wav');
-    this.load.audio('outOfAmmo', 'assets/sounds/mixkit-video-game-retro-click-237.wav');
-    this.load.audio('gameOver', 'assets/sounds/mixkit-winning-a-coin-video-game-2069.wav');
 }
 
 // Initializes the game world, player, UI elements, and entities.
@@ -169,44 +287,27 @@ function create() {
         this.scoreText.setVisible(true); // Always show the score text
     });
 
-    // Dynamically create mapped objects
-    // entities.forEach(entity => {
-    //     if (entity.vertices) {
-    //         const entityGraphics = this.add.graphics();
-    //         entityGraphics.beginPath();
+    // Add key listeners for testing power-ups
+    const powerUpKeys = [
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SIX),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SEVEN),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT)
+    ];
 
-    //         // Move to the first vertex
-    //         const firstVertex = entity.vertices[0];
-    //         entityGraphics.moveTo(firstVertex.x, firstVertex.y);
-
-    //         // Draw lines to the remaining vertices
-    //         entity.vertices.forEach(vertex => {
-    //             entityGraphics.lineTo(vertex.x, vertex.y);
-    //         });
-
-    //         // Close the path and fill the shape
-    //         entityGraphics.closePath();
-    //         entityGraphics.fillStyle(0x808080, 1); // Gray color for entities
-    //         entityGraphics.fillPath();
-    //         this.mapContainer.add(entityGraphics);
-
-    //         // Add red dots on each vertex
-    //         const dots = [];
-    //         entity.vertices.forEach(vertex => {
-    //             const dot = this.add.circle(vertex.x, vertex.y, 5, 0xff0000); // Red dot with radius 5
-    //             dot.setDepth(2); // Ensure the dot is above the entity
-    //             this.mapContainer.add(dot);
-    //             dots.push(dot);
-    //         });
-
-    //         // Store the graphics and dots for toggling visibility
-    //         entity.graphics = entityGraphics;
-    //         entity.dots = dots;
-
-    //         // Store the entity for manual collision handling
-    //         entity.polygon = new Phaser.Geom.Polygon(entity.vertices.map(v => [v.x, v.y]).flat());
-    //     }
-    // });
+    powerUpKeys.forEach((key, index) => {
+        key.on('down', () => {
+            const powerUp = powerUpTypes[index];
+            if (powerUp) {
+                console.log(`Testing power-up: ${powerUp.type}`);
+                activePowerUps.push({ type: powerUp.type, duration: powerUp.duration, effect: powerUp.effect });
+            }
+        });
+    });
 
     // Set the player's depth to ensure it renders above roads, intersections, and grassy areas
     player.setDepth(1);
@@ -981,6 +1082,19 @@ function create() {
 
     // Create cars
     createCars.call(this);
+
+    // Add power-up spawning logic to the create function
+    this.time.addEvent({
+        delay: 10000, // Spawn a power-up every 10 seconds
+        callback: spawnPowerUp,
+        callbackScope: this,
+        loop: true
+    });
+
+    // Spawn initial power-ups in the create function
+    for (let i = 0; i < initialPowerUps; i++) {
+        spawnPowerUp.call(this);
+    }
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
@@ -1135,7 +1249,7 @@ function update(time, delta) {
     // Handle manual collision detection with entities
     entities.forEach(entity => {
         // const cameraBounds = this.cameras.main.worldView; // Get the main camera view bounds
-        if (entity.polygon) { // Only process entities within the camera view
+        if (entity.polygon) {
             // Check collision between the player's collision shape and the entity
             const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
             if (checkPolygonCollision(rotatedShape, entity.polygon)) {
@@ -1389,6 +1503,10 @@ function update(time, delta) {
 
     // Handle manual collision detection between player and people
     people.forEach(person => {
+        // Update collision logic to respect `isIntangible`
+        if (isIntangible) {
+            return;
+        }
         const playerShape = getRotatedCollisionShape(player, player.x, player.y);
         const personBounds = new Phaser.Geom.Ellipse(
             person.x, // Center X
@@ -1448,6 +1566,39 @@ function update(time, delta) {
         );
 
         if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, playerBounds)) {
+            // Remove the current destination
+            this.currentDestination.destroy();
+
+            // Generate a new destination
+            // Ensure the new destination does not spawn within an entity
+            let newX, newY;
+            let isColliding;
+            do {
+                newX = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
+                newY = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
+
+                isColliding = entities.some(entity => {
+                    if (entity.polygon) {
+                        const testBounds = new Phaser.Geom.Circle(newX, newY, 20); // Circle for collision check
+                        return checkCirclePolygonCollision(testBounds, entity.polygon);
+                    }
+                    return false;
+                });
+            } while (isColliding);
+
+            this.currentDestination = this.add.circle(newX, newY, 20, 0xff0000, 1);
+            this.physics.add.existing(this.currentDestination, true);
+
+            // Add a pulsating effect to the new destination point
+            this.tweens.add({
+                targets: this.currentDestination,
+                scale: { from: 1, to: 1.5 },
+                duration: 800,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+
             // Ensure this.timeLeft is a valid number
             if (isNaN(this.timeLeft) || this.timeLeft === undefined) {
                 this.timeLeft = maxTime; // Reset to maxTime if invalid
@@ -1484,19 +1635,17 @@ function update(time, delta) {
                 }
             });
 
-            // Play a sound to celebrate the achievement
-            this.sound.play('comicReceive'); // Play the sound for successfully delivering a comic
-
-            // Move the destination to a new random position
-            this.currentDestination.setPosition(
-                Phaser.Math.Between(100, this.physics.world.bounds.width - 100),
-                Phaser.Math.Between(100, this.physics.world.bounds.height - 100)
-            );
+            if (this.timeLeft <= 0) {
+                this.endGame(false); // End the game when the timer reaches zero
+            }
         }
     }
 
     // Update cars
     updateCars.call(this, delta);
+
+    // Call handlePowerUps in the update loop
+    handlePowerUps.call(this);
 }
 
 // Updates the balance indicator graphics based on the player's balance meter.
@@ -1544,7 +1693,9 @@ function throwProjectile(targetX, targetY) {
     }
 
     this.sound.play('throwComic'); // Play throwComic sound
-    this.setComics(comics - 1); // Reduce the comic count and update the display
+    if (!this.extraComicsActive) {
+        this.setComics(comics - 1); // Reduce the comic count and update the display
+    }
     this.updateComicInventory(); // Update the inventory display
 
     // Randomly select a comic cover
@@ -1662,6 +1813,10 @@ function fallDown() {
 // Handles collisions between the player and entities.
 // Adjusts the player's position and resets balance if necessary.
 function handleEntityCollision(entity) {
+    // Update collision logic to respect `isIntangible`
+    if (isIntangible) {
+        return;
+    }
     if (entity.type === "tree") {
         // Check how much of the player is inside the tree polygon
         const playerBounds = player.sprite.getBounds(); // Use only the playerSprite graphic for bounds
@@ -2028,5 +2183,42 @@ function updateCars(delta) {
             const newDestinationRoad = Phaser.Utils.Array.GetRandom(roadEntities);
             car.destination = getRandomPointInPolygon(new Phaser.Geom.Polygon(newDestinationRoad.vertices));
         }
+    });
+}
+
+// Function to handle power-up effects and durations
+function handlePowerUps() {
+    const currentTime = this.time.now; // Get the current time
+
+    // Iterate through active power-ups
+    activePowerUps = activePowerUps.filter(powerUp => {
+        if (!powerUp.startTime) {
+            powerUp.startTime = currentTime; // Set the start time if not already set
+            powerUp.effect.call(this); // Trigger the power-up effect
+        }
+
+        // Check if the power-up's duration has expired
+        if (currentTime - powerUp.startTime >= powerUp.duration) {
+            console.log(`Power-up expired: ${powerUp.type}`);
+            return false; // Remove expired power-ups
+        }
+
+        return true; // Keep active power-ups
+    });
+}
+
+// Function to spawn power-ups in the game world
+function spawnPowerUp() {
+    const randomType = Phaser.Utils.Array.GetRandom(powerUpTypes);
+    const x = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
+    const y = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
+
+    const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.5);
+    powerUp.type = randomType.type;
+
+    this.physics.add.overlap(player, powerUp, () => {
+        console.log(`Collected power-up: ${powerUp.type}`);
+        activePowerUps.push({ type: powerUp.type, duration: randomType.duration, effect: randomType.effect });
+        powerUp.destroy();
     });
 }

@@ -68,3 +68,7 @@ Superman: Get all of the above power-ups all at once, since Superman is OP
 FR0003 - Create 'People' Spawners throughout town.  These will be randomly selected buildings that 'spawn' newly created people entities, which should make the world seem more alive.
 
 FR0004 - Create additional comic book refill stations at every 'intersection' road entity.
+
+
+### Current Bugs
+* Destinations can spawn inside of entities
