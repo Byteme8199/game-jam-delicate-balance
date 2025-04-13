@@ -29,6 +29,8 @@ function preload() {
     this.load.image('ThePunisher', 'assets/ThePunisher.png');
     this.load.image('Spiderman', 'assets/Spiderman.png');
 
+    this.load.image('batman_logo', 'assets/batman_logo.png'); // Placeholder for refill zone
+
     // Store the keys in the comicCovers array
     comicCovers = ['comic1', 'comic2', 'comic3', 'comic4'];
 
@@ -104,6 +106,9 @@ let lastPlayerPersonCollisionTime = 0; // Track the last collision time globally
 
 // Add a global toggle for intangibility
 let isIntangible = false;
+let imBatman = false; // Flag to indicate if the player is in Batman mode
+let minimapPowerUpIndicators = []; // Declare minimapPowerUpIndicators globally
+
 
 // Define the power-up types and their effects
 const powerUpTypes = [
@@ -189,9 +194,10 @@ const powerUpTypes = [
         }
     } },
     { type: 'Batman', sprite: 'Batman.png', duration: 10000, effect: function() {
-        this.cameras.main.flash(500, 0, 0, 0); // Flash the screen
+        imBatman = true;
         this.time.delayedCall(10000, () => {
             console.log('Batman power-up ended');
+            imBatman = false; // Reset the power-up effect
         });
     } },
     { type: 'Superman', sprite: 'Superman.png', duration: 10000, effect: function() {
@@ -1646,6 +1652,25 @@ function update(time, delta) {
 
     // Call handlePowerUps in the update loop
     handlePowerUps.call(this);
+
+    // Ensure minimapPowerUpIndicators are only visible in the minimap when 'imBatman' is true
+    minimapPowerUpIndicators.forEach(indicator => {
+        if (imBatman) {
+            this.cameras.main.ignore(indicator); // Ignore in the main camera
+            indicator.setVisible(true); // Show in the minimap
+        } else {
+            this.cameras.main.ignore(indicator, false); // Ensure it's visible in the main camera
+            indicator.setVisible(false); // Hide in the minimap
+        }
+    });
+
+    // Update minimapPowerUpIndicators to follow their corresponding power-ups
+    minimapPowerUpIndicators.forEach((indicator, index) => {
+        const powerUp = this.physics.world.bodies.entries.find(body => body.gameObject && body.gameObject.type === 'powerUp' && body.gameObject === indicator.powerUp);
+        if (powerUp) {
+            indicator.setPosition(powerUp.gameObject.x, powerUp.gameObject.y);
+        }
+    });
 }
 
 // Updates the balance indicator graphics based on the player's balance meter.
@@ -2213,12 +2238,25 @@ function spawnPowerUp() {
     const x = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
     const y = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
 
-    const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.5);
+    const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.25);
     powerUp.type = randomType.type;
+    
+    const minimapIndicatorSprite = this.add.sprite(x, y, 'batman_logo').setScale(0.25);
+    minimapIndicatorSprite.setPosition(powerUp.x, powerUp.y);
+    minimapIndicatorSprite.setScrollFactor(0); // Ensure it stays fixed on the minimap
+    minimapPowerUpIndicators.push(minimapIndicatorSprite); // Add to the global array
 
+    // Remove the minimap indicator when the power-up is collected
     this.physics.add.overlap(player, powerUp, () => {
         console.log(`Collected power-up: ${powerUp.type}`);
         activePowerUps.push({ type: powerUp.type, duration: randomType.duration, effect: randomType.effect });
         powerUp.destroy();
+
+        // Remove the corresponding minimap indicator
+        const index = minimapPowerUpIndicators.indexOf(minimapIndicator);
+        if (index !== -1) {
+            minimapPowerUpIndicators[index].destroy();
+            minimapPowerUpIndicators.splice(index, 1);
+        }
     });
 }
