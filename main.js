@@ -32,7 +32,7 @@ function preload() {
     this.load.image('batman_logo', 'assets/batman_logo.png'); // Placeholder for refill zone
 
     // Store the keys in the comicCovers array
-    comicCovers = ['comic1', 'comic2', 'comic3', 'comic4'];
+    comicCovers = ['comic1', 'comic2', 'comic3', 'comic4', 'Batman', 'DrStrange', 'Nightcrawler', 'Shadowcat', 'Superman', 'TheFlash', 'ThePunisher', 'Spiderman'];
 
     this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
     this.load.audio('runIntoEntityCar', 'assets/sounds/mixkit-explainer-video-game-alert-sweep-236.wav');
@@ -119,6 +119,7 @@ let powerUpArray = []; // Global array to store power-ups
 // Define the power-up types and their effects
 const powerUpTypes = [
     { type: 'TheFlash', sprite: 'TheFlash.png', duration: 10000, effect: function() { 
+        this.updatePopupText('Powerup: The Flash'); // Update the popup text
         maxMomentum += 100;
         momentumIncrease += 10; // Increase momentum gain rate
         flashForce = true; // Activate flashForce
@@ -131,6 +132,7 @@ const powerUpTypes = [
         });
     } },
     { type: 'Spiderman', sprite: 'Spiderman.png', duration: 10000, effect: function() { 
+        this.updatePopupText('Powerup: Spider-Man'); // Update the popup text
         balanceThresholdLeft = -10000000000000000;
         balanceThresholdRight = 10000000000000000; // Temporarily disable balance thresholds
         const pullRadius = 200; // Define the radius within which power-ups are pulled
@@ -188,6 +190,7 @@ const powerUpTypes = [
         
     } },
     { type: 'ThePunisher', sprite: 'ThePunisher.png', duration: 10000, effect: function() {
+        this.updatePopupText('Powerup: The Punisher'); // Update the popup text
         this.setComics(maxComics); // Refill comics to max
         this.extraComicsActive = true; // Activate infinite comics
         this.time.delayedCall(10000, () => {
@@ -195,6 +198,7 @@ const powerUpTypes = [
         });
     } },
     { type: 'DrStrange', sprite: 'DrStrange.png', duration: 10000, effect: function() {
+        this.updatePopupText('Powerup: Dr. Strange'); // Update the popup text
         const rewindInterval = 1000; // Every second
         const rewindAmount = 10; // Add 10 seconds to the timer
 
@@ -227,6 +231,7 @@ const powerUpTypes = [
         });
     } },
     { type: 'Shadowcat', sprite: 'Shadowcat.png', duration: 10000, effect: function() {
+        this.updatePopupText('Powerup: Shadowcat'); // Update the popup text
         isIntangible = true; // Enable intangibility
         player.sprite.setAlpha(0.3);
         this.time.delayedCall(10000, () => {
@@ -236,6 +241,7 @@ const powerUpTypes = [
     } },
     { type: 'Nightcrawler', sprite: 'Nightcrawler.png', duration: 10000, effect: function() {
         if (this.currentDestination) {
+            this.updatePopupText('Powerup: Nightcrawler'); // Update the popup text
             const searchRadius = 200; // Radius to search around the destination
             const stepAngle = Math.PI / 16; // Angle step for radial search
 
@@ -312,6 +318,7 @@ const powerUpTypes = [
         }
     } },
     { type: 'Batman', sprite: 'Batman.png', duration: 10000, effect: function() {
+        this.updatePopupText('Powerup: Batman'); // Update the popup text
         imBatman = true;
         nightOverlay.setDepth(1); // Ensure it appears above all other elements
         this.time.delayedCall(10000, () => {
@@ -320,20 +327,20 @@ const powerUpTypes = [
             nightOverlay.setDepth(-100); // Ensure it appears above all other elements
         });
     } },
-    { type: 'Superman', sprite: 'Superman.png', duration: 10000, effect: function() {
-        player.body.setVelocity(0, 0); // Stop player movement
-        player.body.setImmovable(true); // Make player invincible
-        this.time.delayedCall(10000, () => {
-            player.body.setImmovable(false); // Re-enable movement
-        });
-    } }
+    // { type: 'Superman', sprite: 'Superman.png', duration: 10000, effect: function() {
+    //     player.body.setVelocity(0, 0); // Stop player movement
+    //     player.body.setImmovable(true); // Make player invincible
+    //     this.time.delayedCall(10000, () => {
+    //         player.body.setImmovable(false); // Re-enable movement
+    //     });
+    // } }
 ];
 
 // Initialize active power-ups
 let activePowerUps = [];
 
 // Add an initialization variable for the number of power-ups to spawn
-const initialPowerUps = 100; // Default number of power-ups to spawn at game start
+const initialPowerUps = 20; // Default number of power-ups to spawn at game start
 
 // Sets the number of comics the player has, ensuring it stays within valid bounds.
 // Updates the comic count display and inventory UI.
@@ -1230,6 +1237,52 @@ function create() {
     for (let i = 0; i < initialPowerUps; i++) {
         spawnPowerUp.call(this);
     }
+
+    // Function to update the popup text and show it
+    this.updatePopupText = (text, duration = 2000) => {
+        this.popupText.setText(text);
+        this.popupText.setVisible(true);
+
+        this.popupBackground.fillRoundedRect(
+            this.cameras.main.width / 2 - this.popupText.width / 2 - 10, // X position
+            this.cameras.main.height / 2 + 100 - this.popupText.height / 2 - 5, // Y position
+            this.popupText.width + 20, // Width
+            this.popupText.height + 10, // Height
+            10 // Corner radius
+        );
+        this.popupBackground.setVisible(true);
+        
+        // Hide the text after the specified duration
+        this.time.delayedCall(duration, () => {
+            this.popupText.setVisible(false);
+            this.popupBackground.setVisible(false);
+        });
+    };
+
+    // Initialize the popup display for text
+    // Create a text object in the center of the main camera
+    this.popupText = this.add.text(
+        this.cameras.main.width / 2, 
+        this.cameras.main.height / 2 + 100, 
+        '', 
+        {
+        font: '16px PressStart2P',
+        fill: '#ffffff',
+        padding: { x: 10, y: 5 },
+        align: 'center'
+        }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(5); // Centered, fixed position, high depth
+
+    // Ensure the text is above the background
+    this.popupText.setDepth(5);
+    this.popupText.setVisible(false); // Initially hidden
+
+    this.popupBackground = this.add.graphics();
+    this.popupBackground.fillStyle(0x000000, 0.75); // Black with 75% opacity    
+    this.popupBackground.setScrollFactor(0).setDepth(4); // Fixed position, slightly lower depth than text
+    // Attach the popupBackground to the popupText
+
+    this.popupBackground.setVisible(false); // Initially hidden
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
