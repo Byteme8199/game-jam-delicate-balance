@@ -112,6 +112,9 @@ let imBatman = false; // Flag to indicate if the player is in Batman mode
 let flashForce = false;
 let minimapPowerUpIndicators = []; // Declare minimapPowerUpIndicators globally
 let nightOverlay = null; // Declare nightOverlay globally
+let powerUpGroup; // Declare powerUpGroup globally
+
+let powerUpArray = []; // Global array to store power-ups
 
 // Define the power-up types and their effects
 const powerUpTypes = [
@@ -130,11 +133,59 @@ const powerUpTypes = [
     { type: 'Spiderman', sprite: 'Spiderman.png', duration: 10000, effect: function() { 
         balanceThresholdLeft = -10000000000000000;
         balanceThresholdRight = 10000000000000000; // Temporarily disable balance thresholds
-        
-        this.time.delayedCall(10000, () => {
-            balanceThresholdLeft = -100;
-            balanceThresholdRight = 100; 
+        const pullRadius = 200; // Define the radius within which power-ups are pulled
+        const pullSpeed = 200; // Define the speed at which power-ups are pulled
+
+        // Add a graphics object for the web effect
+        const webGraphics = this.add.graphics();
+        webGraphics.setDepth(10); // Ensure it appears above other elements
+
+        // Add a condition to stop the event when the power-up effect ends
+        const stopEvent = this.time.addEvent({
+            delay: 16, // Run every frame (approximately 60 FPS)
+            callback: () => {
+                webGraphics.clear(); // Clear previous web lines
+
+                // Iterate through all power-ups
+                powerUpArray.forEach(child => {
+                    const distance = Phaser.Math.Distance.Between(player.x, player.y, child.x, child.y);
+
+                    if (distance <= pullRadius) {
+                        // Draw a white line (web) from the player to the power-up
+                        webGraphics.lineStyle(2, 0xffffff, 1); // White line
+                        webGraphics.beginPath();
+                        webGraphics.moveTo(player.x, player.y);
+                        webGraphics.lineTo(child.x, child.y);
+                        webGraphics.strokePath();
+
+                        // Pull the power-up towards the player
+                        const angle = Phaser.Math.Angle.Between(child.x, child.y, player.x, player.y);
+                        if (child.body) {
+                            child.body.setVelocity(Math.cos(angle) * pullSpeed, Math.sin(angle) * pullSpeed); // Set velocity towards the player
+                        } else {
+                            this.physics.world.enable(child); // Enable physics for the child if not already enabled
+                            child.body.setVelocity(Math.cos(angle) * pullSpeed, Math.sin(angle) * pullSpeed); // Set velocity towards the player
+                        }
+
+                        // Remove the power-up object when Spiderman power brings it to collision range
+                        if (child.type === 'Spiderman') {
+                            child.destroy();
+                        }
+                    }
+                });
+            },
+            loop: true
         });
+
+        // Stop the event when the power-up effect ends
+        this.time.delayedCall(10000, () => {
+            stopEvent.remove(); // Stop the event
+            balanceThresholdLeft = -100; // Reset balance thresholds
+            balanceThresholdRight = 100; // Reset balance thresholds
+            webGraphics.clear(); // Clear the web graphics
+            webGraphics.destroy(); // Destroy the web graphics object
+        });
+        
     } },
     { type: 'ThePunisher', sprite: 'ThePunisher.png', duration: 10000, effect: function() {
         this.setComics(maxComics); // Refill comics to max
@@ -215,8 +266,49 @@ const powerUpTypes = [
                     break; // Exit the loop if a safe position is found
                 }
             }
+            
+            const shape2 = new Phaser.Geom.Ellipse(0, 0, 40, 40);
+            
 
-            player.setPosition(safeX, safeY); // Teleport player to the safe position
+            // Add a purple/pink cloud effect for Nightcrawler's Bamf particles
+            const bamfEmitter = this.add.particles(0, 0, 'flares', {
+                frame: { frames: ['red', 'white'], cycle: true },
+                blendMode: 'ADD',
+                lifespan: 400,
+                quantity: 5,
+                scale: { start: 0.8, end: 0.1 },
+                alpha: { start: 1, end: 0 },
+                speed: { min: 0, max: 200 },
+                angle: { min: 0, max: 360 }
+            });
+            bamfEmitter.setPosition(player.x, player.y); // Set the emitter position to the player's location
+            bamfEmitter.setDepth(10); // Ensure it appears above other elements
+
+            // Stop the emitter after a short duration
+            this.time.delayedCall(1000, () => {
+                bamfEmitter.stop();
+            });
+
+            // Emit particles at the player's current position
+            bamfEmitter.setPosition(player.x, player.y);
+            bamfEmitter.addEmitZone({ type: 'random', source: shape2, quantity: 14, total: 1000 });
+
+            this.time.delayedCall(200, () => {
+                console.log('1/2 second has passed');
+                 // Teleport the player to the safe position
+                player.setPosition(safeX, safeY);
+
+                // Emit particles at the new position
+                bamfEmitter.setPosition(player.x, player.y);
+                bamfEmitter.addEmitZone({ type: 'random', source: shape2, quantity: 14, total: 1000 });
+
+            });
+            
+           // Destroy the emitter after the effect
+            this.time.delayedCall(1000, () => {
+                bamfEmitter.destroy();
+            });
+            
         }
     } },
     { type: 'Batman', sprite: 'Batman.png', duration: 10000, effect: function() {
@@ -255,6 +347,7 @@ function setComics(value) {
 // Initializes the game world, player, UI elements, and entities.
 // Sets up input handling, minimap, and collision detection.
 function create() {
+    powerUpGroup = this.physics.add.group();
     // Add the background image and set it to cover the entire map
     this.mapContainer = this.add.container(0, 0);
 
@@ -2281,15 +2374,18 @@ function handlePowerUps() {
     });
 }
 
-// Function to spawn power-ups in the game world
+// Function to spawn power-ups
 function spawnPowerUp() {
     const randomType = Phaser.Utils.Array.GetRandom(powerUpTypes);
     const x = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
     const y = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
 
-    const powerUp = this.physics.add.sprite(x, y, randomType.type).setScale(1.25).setDepth(11);
+    const powerUp = powerUpGroup.create(x, y, randomType.type).setScale(1.25).setDepth(11);
     powerUp.type = randomType.type;
-    
+    powerUp.collected = false; // Add a flag to track collection
+
+    powerUpArray.push(powerUp); // Add to the global array
+
     // Add a minimap indicator for the power-up
     const minimapIndicator = this.add.graphics();
     minimapIndicator.fillStyle(0xFFFFFF, 1); // White for power-ups
@@ -2304,22 +2400,22 @@ function spawnPowerUp() {
 
     // Remove the minimap indicator when the power-up is collected
     this.physics.add.overlap(player, powerUp, () => {
-        console.log(`Collected power-up: ${powerUp.type}`);
-        // Check if the player already has the power-up active
-        const existingPowerUp = activePowerUps.find(p => p.type === powerUp.type);
-        if (existingPowerUp) {
-            // Remove the existing power-up and restart its effect
-            activePowerUps = activePowerUps.filter(p => p.type !== powerUp.type);
-            console.log(`Restarting power-up: ${powerUp.type}`);
-        }
-        activePowerUps.push({ type: powerUp.type, duration: randomType.duration, effect: randomType.effect });
-        powerUp.destroy();
+        if (!powerUp.collected) {
+            console.log(`Collected power-up: ${powerUp.type}`);
+            powerUp.collected = true; // Mark as collected
+            const powerUpIndex = powerUpArray.indexOf(powerUp);
+            if (powerUpIndex !== -1) {
+                powerUpArray.splice(powerUpIndex, 1);
+            }
+            activePowerUps.push({ type: powerUp.type, duration: randomType.duration, effect: randomType.effect });
+            powerUp.destroy();
 
-        // Remove the corresponding minimap indicator
-        const index = minimapPowerUpIndicators.indexOf(minimapIndicator);
-        if (index !== -1) {
-            minimapPowerUpIndicators[index].destroy();
-            minimapPowerUpIndicators.splice(index, 1);
+            // Remove the corresponding minimap indicator
+            const index = minimapPowerUpIndicators.indexOf(minimapIndicator);
+            if (index !== -1) {
+                minimapPowerUpIndicators[index].destroy();
+                minimapPowerUpIndicators.splice(index, 1);
+            }
         }
     });
 }
