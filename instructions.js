@@ -28,7 +28,7 @@ export default class InstructionsScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         const detailsText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 100, 
-            'Use direction buttons to move.\nBalance your character to avoid falling.', {
+            'Use these buttons to move.\nBalance your character\nto avoid falling.', {
             font: '14px PressStart2P',
             fill: '#ffffff',
             align: 'center',
@@ -43,8 +43,8 @@ export default class InstructionsScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Adjust graphics for WASD and Arrow keys to align like a keyboard
-        const wasdKeys = this.add.text(this.scale.width / 2 - 100, this.scale.height / 2 - 40, ' W \nA S D', {
-            font: '20px PressStart2P',
+        const wasdKeys = this.add.text(this.scale.width / 2 - 230, this.scale.height / 2 - 110, ' W \nA S D', {
+            font: '14px PressStart2P',
             fill: '#ffffff',
             align: 'center',
             shadow: {
@@ -57,8 +57,25 @@ export default class InstructionsScene extends Phaser.Scene {
             }
         }).setOrigin(0.5);
 
-        const arrowKeys = this.add.text(this.scale.width / 2 + 100, this.scale.height / 2 - 40, '  ↑\n← ↓ →', {
-            font: '20px PressStart2P',
+        const arrowKeys = this.add.text(this.scale.width / 2 + 230, this.scale.height / 2 - 110, '  ↑\n← ↓ →', {
+            font: '14px PressStart2P',
+            fill: '#ffffff',
+            align: 'center',
+            shadow: {
+                offsetX: 2,
+                offsetY: 2,
+                color: '#000000',
+                blur: 0,
+                stroke: true,
+                fill: true
+            }
+        }).setOrigin(0.5);
+        
+        
+        // Add information about aiming and throwing
+        const aimingInfo = this.add.text(this.scale.width / 2, this.scale.height / 2 - 50, 
+            'Aim with mouse / throw with click.', {
+            font: '14px PressStart2P',
             fill: '#ffffff',
             align: 'center',
             shadow: {
@@ -73,7 +90,7 @@ export default class InstructionsScene extends Phaser.Scene {
 
         // Add information about destinations and refill zones
         const additionalInfo = this.add.text(this.scale.width / 2, this.scale.height / 2 + 20, 
-            'Deliver comics for score and extra time.\nRefill comics at the refill zone.', {
+            'Deliver comics for score\nand extra time.\nRefill comics at \nthe refill zone.', {
             font: '14px PressStart2P',
             fill: '#ffffff',
             align: 'center',
@@ -87,9 +104,8 @@ export default class InstructionsScene extends Phaser.Scene {
             }
         }).setOrigin(0.5);
 
-        // Add information about aiming and throwing
-        const aimingInfo = this.add.text(this.scale.width / 2, this.scale.height / 2 + 70, 
-            'Aim with mouse / throw with click.', {
+        const funInfo = this.add.text(this.scale.width / 2, this.scale.height / 2 + 90, 
+            'Collect hidden comics\n for fun power ups!', {
             font: '14px PressStart2P',
             fill: '#ffffff',
             align: 'center',
