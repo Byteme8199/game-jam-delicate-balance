@@ -14,6 +14,8 @@ function preload() {
     // Load textures for collidable objects
     this.load.image('balanceIndicator', 'assets/balanceIndicator.png');
 
+    this.load.image('refillZone', 'assets/refillZone.png');
+
     // Load multiple comic cover images
     this.load.image('comic1', 'assets/comic1.png');
     this.load.image('comic2', 'assets/comic2.png');
@@ -136,7 +138,7 @@ let spiderManPowers = null;
 let webGraphics = null;
 
 // Add an initialization variable for the number of power-ups to spawn
-const initialPowerUps = 120; // Default number of power-ups to spawn at game start
+const initialPowerUps = 40; // Default number of power-ups to spawn at game start
 
 // Sets the number of comics the player has, ensuring it stays within valid bounds.
 // Updates the comic count display and inventory UI.
@@ -456,28 +458,38 @@ function create() {
         }
     });
 
-    // Add the refill zone as an entity
-    const refillZoneEntity = {
-        type: 'refillZone',
-        x: 9560,
-        y: 5841,
-        radius: 30
-    };
-    entities.push(refillZoneEntity);
+    // Add multiple refill zones
+    const refillZoneCoordinates = [
+        { x: 9230, y: 5883 }, // Original refill zone
+        { x: 5821, y: 5658 },
+        { x: 5822, y: 3016 },
+        { x: 8459, y: 3037 },
+        { x: 8499, y: 5638 }
+    ];
 
-    // Create the refill zone graphics
-    const refillZoneGraphics = this.add.circle(refillZoneEntity.x, refillZoneEntity.y, refillZoneEntity.radius, 0x00ff00, 1);
-    this.physics.add.existing(refillZoneGraphics, true); // Make it a static physics object
-    refillZoneEntity.graphics = refillZoneGraphics;
+    refillZoneCoordinates.forEach(coord => {
+        const refillZoneEntity = {
+            type: 'refillZone',
+            x: coord.x,
+            y: coord.y,
+            radius: 30
+        };
+        entities.push(refillZoneEntity);
 
-    // Add a pulsating effect to the refill zone
-    refillZoneEntity.tween = this.tweens.add({
-        targets: refillZoneGraphics,
-        scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
-        duration: 800, // Duration of the pulsation
-        yoyo: true, // Reverse the tween to create a pulsating effect
-        repeat: -1, // Repeat indefinitely
-        ease: 'Sine.easeInOut'
+        // Create the refill zone graphics
+        refillZoneEntity.graphics = this.add.sprite(refillZoneEntity.x, refillZoneEntity.y, 'refillZone')
+            .setScale(1.5) // Scale the image appropriately
+            .setDepth(1); // Ensure it appears above other elements
+
+        // Add a pulsating effect to the refill zone
+        refillZoneEntity.tween = this.tweens.add({
+            targets: refillZoneEntity.graphics,
+            scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
+            duration: 800, // Duration of the pulsation
+            yoyo: true, // Reverse the tween to create a pulsating effect
+            repeat: -1, // Repeat indefinitely
+            ease: 'Sine.easeInOut'
+        });
     });
 
     // Bind the fallDown function to the scene
@@ -492,6 +504,7 @@ function create() {
     if (player) {
         minimap.ignore(player);
 
+        // Declare and initialize minimapArrow
         const arrow = this.add.graphics();
         arrow.fillStyle(0xffff00, 1); // Yellow color
         arrow.lineStyle(2, 0x000000, 1); // Black outline
@@ -504,8 +517,7 @@ function create() {
         arrow.fillPath();
         arrow.strokePath();
 
-        // Add the arrow to a container for minimap-specific elements
-        const minimapArrow = this.add.container(player.x, player.y, [arrow]);
+        let minimapArrow = this.add.container(player.x, player.y, [arrow]); // Initialize minimapArrow
         minimapArrow.setScale(30); // Scale the arrow for visibility in the minimap
         minimapArrow.setDepth(1); // Ensure it appears above other minimap elements
 
@@ -629,14 +641,23 @@ function create() {
     // Ignore the minimap indicator in the main camera but show it in the minimap
     this.cameras.main.ignore(minimapDestination);
 
-    // Add a main map indicator for the destination
-    const mainMapIndicator = this.add.graphics();
-    mainMapIndicator.fillStyle(0xff0000, 1); // Red color
-    mainMapIndicator.fillCircle(0, 0, 15); // Increased size for better visibility
-    const mainMapDestination = this.add.container(this.currentDestination.x, this.currentDestination.y, [mainMapIndicator]);
+    // Replace the red circle destination map indicators with red arrows with a black outline
+    const destinationArrow = this.add.graphics();
+    destinationArrow.fillStyle(0xff0000, 1); // Red color for the arrow
+    destinationArrow.lineStyle(2, 0x000000, 1); // Black outline
+    destinationArrow.beginPath();
+    destinationArrow.moveTo(0, -10); // Point of the arrow
+    destinationArrow.lineTo(-8, 10); // Left side of the arrow
+    destinationArrow.lineTo(8, 10); // Right side of the arrow
+    destinationArrow.lineTo(0, -10); // Back to the point
+    destinationArrow.closePath();
+    destinationArrow.fillPath();
+    destinationArrow.strokePath();
+
+    const mainMapDestination = this.add.container(this.currentDestination.x, this.currentDestination.y, [destinationArrow]);
     mainMapDestination.setDepth(1); // Ensure it appears above other elements
 
-    // Update the main map indicator's position to stick to the visible camera bounds
+    // Update the main map indicator's position and rotation to stick to the visible camera bounds
     this.events.on('update', () => {
         const destinationX = this.currentDestination.x;
         const destinationY = this.currentDestination.y;
@@ -664,8 +685,15 @@ function create() {
             const clampedY = cameraBounds.centerY + dy * scale;
 
             mainMapDestination.setPosition(clampedX, clampedY);
+
+            // Rotate the arrow to face the destination
+            const angleToDestination = Phaser.Math.Angle.Between(clampedX, clampedY, destinationX, destinationY);
+            destinationArrow.rotation = angleToDestination + Math.PI / 2; // Rotate the arrow to point towards the destination
         }
     });
+
+    // Ignore the main map indicator in the minimap but show it in the main camera
+    minimap.ignore(mainMapDestination);
 
     // Add a segmented progress bar for the timer
     const progressBarWidth = this.cameras.main.width * 0.8; // 80% of the camera width
@@ -1584,9 +1612,9 @@ function update(time, delta) {
             }
         }
     });
-
-    // Handle manual collision detection between player and refill zone
-    if (refillZoneEntity) {
+    // Handle manual collision detection between player and refill zones
+    const refillZones = entities.filter(entity => entity.type === 'refillZone');
+    refillZones.forEach(refillZoneEntity => {
         const refillZoneBounds = new Phaser.Geom.Circle(refillZoneEntity.x, refillZoneEntity.y, refillZoneEntity.radius);
         const playerBounds = new Phaser.Geom.Rectangle(
             player.x - player.body.width / 2,
@@ -1602,7 +1630,7 @@ function update(time, delta) {
                 this.updateComicInventory(); // Refresh the comics display
             }
         }
-    }
+    });
 
     let lastDeliveryTime = maxTime; // Initialize to maxTime for the first delivery
 
