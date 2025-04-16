@@ -15,6 +15,7 @@ function preload() {
     this.load.image('balanceIndicator', 'assets/balanceIndicator.png');
 
     this.load.image('refillZone', 'assets/refillZone.png');
+    this.load.image('location_pin', 'assets/location_pin.png');
 
     // Load multiple comic cover images
     this.load.image('comic1', 'assets/comic1.png');
@@ -332,6 +333,7 @@ function create() {
 
     // Bind the setComics function to the scene
     this.setComics = setComics.bind(this);
+    this.createDestination = createDestination.bind(this); // Bind the createDestination function to the scene
 
     // Create a group for projectiles
     projectiles = this.physics.add.group();
@@ -579,25 +581,67 @@ function create() {
         this.scene.start('GameOverScene', { score }); // Transition to the GameOverScene with the final score
     };
 
-    // Add a destination point
-    this.currentDestination = this.add.circle(
-        Phaser.Math.Between(100, this.physics.world.bounds.width - 100), // Random X position within world bounds
-        Phaser.Math.Between(100, this.physics.world.bounds.height - 100), // Random Y position within world bounds
-        20, 
-        0xff0000, 
-        1
-    ); // Red circle for the destination
-    this.physics.add.existing(this.currentDestination, true); // Make it a static physics object
 
-    // Add a pulsating effect to the destination point
-    this.tweens.add({
-        targets: this.currentDestination,
-        scale: { from: 1, to: 1.5 }, // Pulsate between normal size and 1.5x size
-        duration: 800, // Duration of the pulsation
-        yoyo: true, // Reverse the tween to create a pulsating effect
-        repeat: -1, // Repeat indefinitely
-        ease: 'Sine.easeInOut'
-    });
+    // Define a reusable function to create a destination object
+    function createDestination() {
+        // Generate a new destination
+        // Ensure the new destination does not spawn within an entity
+        let newX, newY;
+        let isColliding;
+        do {
+            newX = Phaser.Math.Between(100, (worldBaseWidth * globalScale) - 100);
+            newY = Phaser.Math.Between(100, (worldBaseHeight * globalScale) - 100);
+
+            isColliding = entities.some(entity => {
+                if (entity.polygon) {
+                    const testBounds = new Phaser.Geom.Circle(newX, newY, 20); // Circle for collision check
+                    return checkCirclePolygonCollision(testBounds, entity.polygon);
+                }
+                return false;
+            });
+        } while (isColliding);
+        
+        const destination = this.add.image(newX, newY, 'location_pin')
+            .setScale(1.5)
+            .setDepth(50);
+
+        // Add a bounce animation to the location_pin
+        this.tweens.add({
+            targets: destination,
+            y: '+=10', // Move down by 10 pixels
+            duration: 1000, // Duration of the bounce
+            yoyo: true, // Reverse the tween to create a bounce effect
+            repeat: -1, // Repeat indefinitely
+            ease: 'Sine.easeInOut'
+        });
+
+        // Add a shadow that changes size based on the bounce
+        const shadow = this.add.ellipse(
+            newX,
+            newY + 60, // Position the shadow below the pin
+            30, // Initial width of the shadow
+            10, // Initial height of the shadow
+            0x000000, // Black color
+            0.5 // 50% opacity
+        ).setDepth(10); // Ensure the shadow is below the pin
+
+        this.tweens.add({
+            targets: shadow,
+            scaleX: { from: 1, to: 0.8 }, // Shrink and expand the shadow width
+            scaleY: { from: 1, to: 0.5 }, // Shrink and expand the shadow height
+            duration: 1000, // Match the bounce duration
+            yoyo: true, // Reverse the tween to match the bounce
+            repeat: -1, // Repeat indefinitely
+            ease: 'Sine.easeInOut'
+        });
+
+        
+
+        return destination;
+    }
+
+    // Create the initial destination using the reusable function
+    this.currentDestination = this.createDestination(this);
 
     // Add a minimap indicator for the destination
     const destinationIndicator = this.add.graphics();
@@ -694,6 +738,9 @@ function create() {
 
     // Ignore the main map indicator in the minimap but show it in the main camera
     minimap.ignore(mainMapDestination);
+    
+    // Ensure the destination map indicator appears above the rest of the UI elements
+    mainMapDestination.setDepth(10); // Set a high depth value to ensure it is above other UI elements
 
     // Add a segmented progress bar for the timer
     const progressBarWidth = this.cameras.main.width * 0.8; // 80% of the camera width
@@ -704,7 +751,7 @@ function create() {
 
     this.timerSegments = [];
     const progressBarX = this.cameras.main.width * 0.1; // Centered horizontally (10% offset on each side)
-    const progressBarY = this.cameras.main.height * 0.95 - progressBarHeight; // 5% offset from the bottom
+    const progressBarY = this.cameras.main.height * 0.98 - progressBarHeight; // Move 10 pixels closer to the bottom
 
     for (let i = 0; i < segmentCount; i++) {
         const segment = this.add.rectangle(
@@ -868,7 +915,7 @@ function create() {
     });
 
     // Create a container for the comic inventory
-    const inventoryContainer = this.add.container(this.cameras.main.width / 2, this.cameras.main.height - 60).setScrollFactor(0);
+    const inventoryContainer = this.add.container(this.cameras.main.width / 2, this.cameras.main.height - 40).setScrollFactor(0);
 
     // Add a background for the inventory
     const inventoryBackground = this.add.graphics();
@@ -938,7 +985,7 @@ function create() {
     // Add a mute button
     const muteButton = this.add.text(
         this.cameras.main.width - 52, // Position near the top-right corner
-        this.cameras.main.height - 52,
+        this.cameras.main.height - 40,
         'Mute',
         {
             font: '12px Arial',
@@ -1136,6 +1183,36 @@ function create() {
     // Attach the popupBackground to the popupText
 
     this.popupBackground.setVisible(false); // Initially hidden
+
+    // Add a bounce animation to the location_pin
+    this.tweens.add({
+        targets: this.currentDestination,
+        y: '+=10', // Move down by 10 pixels
+        duration: 1000, // Duration of the bounce
+        yoyo: true, // Reverse the tween to create a bounce effect
+        repeat: -1, // Repeat indefinitely
+        ease: 'Sine.easeInOut'
+    });
+
+    // Add a shadow that changes size based on the bounce
+    const shadow = this.add.ellipse(
+        this.currentDestination.x, 
+        this.currentDestination.y + 60, // Position the shadow below the pin
+        30, // Initial width of the shadow
+        10, // Initial height of the shadow
+        0x000000, // Black color
+        0.5 // 50% opacity
+    ).setDepth(12); // Ensure the shadow is below the pin
+
+    this.tweens.add({
+        targets: shadow,
+        scaleX: { from: 1, to: 0.8 }, // Shrink and expand the shadow width
+        scaleY: { from: 1, to: 0.5 }, // Shrink and expand the shadow height
+        duration: 1000, // Match the bounce duration
+        yoyo: true, // Reverse the tween to match the bounce
+        repeat: -1, // Repeat indefinitely
+        ease: 'Sine.easeInOut'
+    });
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
@@ -1577,8 +1654,9 @@ function update(time, delta) {
                         minimapIndicator.fillCircle(0, 0, 5);
                         minimapIndicator.strokeCircle(0, 0, 5);
                     }
+                    // Update the popup text when a projectile is delivered to a person
+                    this.updatePopupText('Comic Delivered!');
                 }
-
                 projectile.destroy(); // Destroy the projectile after collision
             }
         });
@@ -1651,36 +1729,7 @@ function update(time, delta) {
         if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, playerBounds)) {
             // Remove the current destination
             this.currentDestination.destroy();
-
-            // Generate a new destination
-            // Ensure the new destination does not spawn within an entity
-            let newX, newY;
-            let isColliding;
-            do {
-                newX = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
-                newY = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
-
-                isColliding = entities.some(entity => {
-                    if (entity.polygon) {
-                        const testBounds = new Phaser.Geom.Circle(newX, newY, 20); // Circle for collision check
-                        return checkCirclePolygonCollision(testBounds, entity.polygon);
-                    }
-                    return false;
-                });
-            } while (isColliding);
-
-            this.currentDestination = this.add.circle(newX, newY, 20, 0xff0000, 1);
-            this.physics.add.existing(this.currentDestination, true);
-
-            // Add a pulsating effect to the new destination point
-            this.tweens.add({
-                targets: this.currentDestination,
-                scale: { from: 1, to: 1.5 },
-                duration: 800,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
+            this.currentDestination = this.createDestination(this);
 
             // Ensure this.timeLeft is a valid number
             if (isNaN(this.timeLeft) || this.timeLeft === undefined) {
@@ -1721,7 +1770,43 @@ function update(time, delta) {
             if (this.timeLeft <= 0) {
                 this.endGame(false); // End the game when the timer reaches zero
             }
+
+            // Update the popup text when the player touches the destination
+            this.updatePopupText('Destination Reached!');
         }
+    }
+
+    // Handle manual collision detection between projectiles and currentDestination
+    if (this.currentDestination) {
+        projectiles.getChildren().forEach(projectile => {
+            const destinationBounds = new Phaser.Geom.Circle(
+                this.currentDestination.x,
+                this.currentDestination.y,
+                this.currentDestination.displayWidth / 2 // Use the display width for collision radius
+            );
+
+            const projectileBounds = new Phaser.Geom.Rectangle(
+                projectile.x - projectile.displayWidth / 2,
+                projectile.y - projectile.displayHeight / 2,
+                projectile.displayWidth,
+                projectile.displayHeight
+            );
+
+            if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, projectileBounds)) {
+                // Handle scoring logic when a projectile hits the destination
+                this.updatePopupText('Destination Hit!');
+                this.sound.play('comicReceive'); // Play a sound for hitting the destination
+                score += 20; // Award points for hitting the destination
+                this.scoreText.setText(`Score: ${score}`); // Update the score display
+
+                // Destroy the projectile
+                projectile.destroy();
+
+                // Remove the current destination
+                this.currentDestination.destroy();
+                this.currentDestination = this.createDestination(this);
+            }
+        });
     }
 
     // Update cars
@@ -1832,6 +1917,7 @@ function throwProjectile(targetX, targetY) {
 // Resets momentum, balance, and temporarily disables movement.
 function fallDown() {
     this.sound.play('fallOver'); // Play fallOver sound
+    this.updatePopupText('You fell over!');
     // Reset momentum and speed
     momentum = 0;
     player.body.setVelocity(0, 0);
@@ -2367,7 +2453,7 @@ function handlePowerUps() {
                         quantity: 4,
                         scale: { start: 0.5, end: 0.1 }
                     });
-                    this.rewindEmitter.setPosition(config.width / 2, config.height - 40); // Set the emitter position
+                    this.rewindEmitter.setPosition(config.width / 2, config.height - 30); // Set the emitter position
                     this.rewindEmitter.addEmitZone({ type: 'random', source: shape2, quantity: 14, total: 100, yoyo: true });
                     // Attach the emitter to the bottom of the camera
                     this.rewindEmitter.setScrollFactor(0); // Ensure it stays fixed relative to the camera

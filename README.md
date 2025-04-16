@@ -27,3 +27,5 @@ The game will be playable directly in a web browser. Stay tuned for updates!
 ## Credits
 Created for the Lawrenceville Art Center's Free Comic Day Game Jam.
 Some sound Effects:  https://mixkit.co/free-sound-effects/game/
+Stack of Comics:  https://www.pngitem.com/middle/ihiiowR_comic-book-stack-transparent-hd-png-download/
+Pin: https://www.pngitem.com/middle/bTxiio_frames-illustrations-hd-images-location-symbol-blue-png/
