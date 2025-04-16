@@ -584,23 +584,34 @@ function create() {
 
     // Define a reusable function to create a destination object
     function createDestination() {
+
+        // delete previous destination if it exists
+        if (this.currentDestination) {
+            this.currentDestination.destroy(); // Destroy the previous destination
+            this.currentDestination.shadow.destroy(); // Destroy the shadow associated with the previous destination
+        }
+
         // Generate a new destination
         // Ensure the new destination does not spawn within an entity
         let newX, newY;
-        let isColliding;
+        let isColliding; // Declare isColliding in the correct scope
         do {
-            newX = Phaser.Math.Between(100, (worldBaseWidth * globalScale) - 100);
-            newY = Phaser.Math.Between(100, (worldBaseHeight * globalScale) - 100);
+            newX = Phaser.Math.Between(0, this.physics.world.bounds.width);
+            newY = Phaser.Math.Between(0, this.physics.world.bounds.height);
 
+            // Check if the new position collides with any entity
             isColliding = entities.some(entity => {
-                if (entity.polygon) {
-                    const testBounds = new Phaser.Geom.Circle(newX, newY, 20); // Circle for collision check
-                    return checkCirclePolygonCollision(testBounds, entity.polygon);
+                if (entity.vertices) {
+                    // check if the vertices for this entity would collide with the new position
+                    const polygon = new Phaser.Geom.Polygon(entity.vertices);
+                    const point = new Phaser.Geom.Point(newX, newY);
+                    return Phaser.Geom.Polygon.Contains(polygon, point.x, point.y);                    
                 }
                 return false;
             });
+
         } while (isColliding);
-        
+
         const destination = this.add.image(newX, newY, 'location_pin')
             .setScale(1.5)
             .setDepth(50);
@@ -635,7 +646,7 @@ function create() {
             ease: 'Sine.easeInOut'
         });
 
-        
+        destination.shadow = shadow; // Associate the shadow with the destination
 
         return destination;
     }
@@ -1391,19 +1402,14 @@ function update(time, delta) {
         throwProjectile.call(this, targetX, targetY);
     }
 
-    let isCollidingWithTree = false;
-
     // Handle manual collision detection with entities
     entities.forEach(entity => {
-        // const cameraBounds = this.cameras.main.worldView; // Get the main camera view bounds
+        // Check if the entity has a polygon for collision detection
         if (entity.polygon) {
             // Check collision between the player's collision shape and the entity
             const rotatedShape = getRotatedCollisionShape(player, player.x, player.y);
             if (checkPolygonCollision(rotatedShape, entity.polygon)) {
                 handleEntityCollision.call(this, entity);
-                if (entity.type === "tree") {
-                    isCollidingWithTree = true;
-                }
             }
 
             // Check collision between projectiles and the entity
@@ -1727,8 +1733,6 @@ function update(time, delta) {
         );
 
         if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, playerBounds)) {
-            // Remove the current destination
-            this.currentDestination.destroy();
             this.currentDestination = this.createDestination(this);
 
             // Ensure this.timeLeft is a valid number
@@ -1801,9 +1805,6 @@ function update(time, delta) {
 
                 // Destroy the projectile
                 projectile.destroy();
-
-                // Remove the current destination
-                this.currentDestination.destroy();
                 this.currentDestination = this.createDestination(this);
             }
         });
@@ -1814,6 +1815,19 @@ function update(time, delta) {
 
     // handle powerup timers
     handlePowerUps.call(this);
+
+    // display a FPS or performance metric
+    if (debugMode) {
+        if (!this.fpsText) {
+            this.fpsText = this.add.text(10, 40, '', {
+                font: '16px Arial',
+                fill: '#ffffff'
+            }).setScrollFactor(0).setDepth(5);
+        }
+        this.fpsText.setText(`FPS: ${Math.floor(this.game.loop.actualFps)}`);
+    } else if (this.fpsText) {
+        this.fpsText.setText(''); // Clear the text when debug mode is off
+    }
 }
 
 // Updates the balance indicator graphics based on the player's balance meter.
