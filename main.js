@@ -8,7 +8,10 @@ import { getRandomName } from './utils.js'; // Import utility for generating ran
 
 // Preloads assets such as images for the player, background, and comic covers.
 function preload() {
-    this.load.image('player', 'assets/player.png'); // Placeholder asset
+    this.load.image('player1', 'assets/player1.png'); // Placeholder asset
+    this.load.image('player2', 'assets/player2.png'); // Placeholder asset
+    this.load.image('player3', 'assets/player3.png'); // Placeholder asset
+    this.load.image('player4', 'assets/player4.png'); // Placeholder asset
     this.load.image('background', 'assets/background.png'); // Background image
 
     // Load textures for collidable objects
@@ -104,6 +107,7 @@ let minimap; // Declare minimap globally
 let people = []; // Declare people array globally
 let minimapPeopleIndicators = []; // Declare minimapPeopleIndicators globally
 let cars = []; // Declare cars array globally
+let cheater = false;
 
 const globalScale = 10;
 
@@ -127,6 +131,7 @@ const powerUpTypes = [
     { type: 'Shadowcat', label: 'Shadowcat'},
     { type: 'Nightcrawler', label: 'Nightcrawler'},
     { type: 'Batman', label: 'Batman'},
+    { type: 'Thanos', label: 'Thanos'},
 ];
 
 // Initialize active power-ups
@@ -177,7 +182,21 @@ function create() {
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
     // Add the player sprite
-    const playerSprite = this.add.sprite(0, 0, 'player'); // Centered in the container
+    // Create an animated player sprite using player1-4 images
+    this.anims.create({
+        key: 'playerAnimation',
+        frames: [
+            { key: 'player1' },
+            { key: 'player2' },
+            { key: 'player3' },
+            { key: 'player4' }
+        ],
+        frameRate: 10, // Adjust the frame rate as needed
+        repeat: -1 // Loop the animation indefinitely
+    });
+
+    const playerSprite = this.add.sprite(0, 0, 'player1'); // Start with the first frame
+    playerSprite.play('playerAnimation'); // Play the animation
 
     // Add the balance indicator image
     const balanceIndicatorImage = this.add.image(-50, 0, 'balanceIndicator'); // Positioned behind the player
@@ -235,14 +254,18 @@ function create() {
         this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
         this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SIX),
         this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SEVEN),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT)
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NINE)
     ];
 
     powerUpKeys.forEach((key, index) => {
         key.on('down', () => {
-            const powerUp = powerUpTypes[index];
-            if (powerUp) {
-                enablePowerUp.call(this, powerUp); // Call the enablePowerUp function with the power-up type
+            if (debugMode) { // Only allow during debug mode
+                const powerUp = powerUpTypes[index];
+                if (powerUp) {
+                    enablePowerUp.call(this, powerUp); // Call the enablePowerUp function with the power-up type
+                    cheater = true;
+                }
             }
         });
     });
@@ -313,7 +336,7 @@ function create() {
     this.scoreText.setScrollFactor(0); // Ensure it stays fixed relative to the minimap
 
     // Add text to display debug information for the hovered object
-    this.hoveredObjectText = this.add.text(0, 60, 'Hovered Object: None', {
+    this.hoveredObjectText = this.add.text(0, 60, '', {
         font: '16px Arial',
         fill: '#ffffff'
     });
@@ -376,11 +399,6 @@ function create() {
             }
             return false;
         });
-
-        if (!hoveredObject) {
-            // Reset the debug text if no object is hovered
-            this.hoveredObjectText.setText('Hovered Object: None');
-        }
 
         // Check if the cursor is over an object that needs comics
         const hoveredComicObject = entities.find(entity => {
@@ -578,7 +596,7 @@ function create() {
     this.endGame = (won) => {
         this.scene.pause(); // Pause the game
         this.sound.stopAll(); // Stop all sounds
-        this.scene.start('GameOverScene', { score }); // Transition to the GameOverScene with the final score
+        this.scene.start('GameOverScene', { score, cheater }); // Transition to the GameOverScene with the final score
     };
 
 
@@ -1064,12 +1082,8 @@ function create() {
                         // Add a hover event to display the coordinates of the dot
                         dot.setInteractive();
                         dot.on('pointerover', () => {
-                            this.hoveredObjectText.setText(`Hovered Object: Dot at X: ${Math.floor(dot.x)}, Y: ${Math.floor(dot.y)}`);
+                            this.hoveredObjectText.setText(`Dot at X: ${Math.floor(dot.x)}, Y: ${Math.floor(dot.y)}`);
                         });
-                        dot.on('pointerout', () => {
-                            this.hoveredObjectText.setText('Hovered Object: None');
-                        });
-
                         dot.on('pointerdown', () => {
                             const coordinates = `{ x: ${Math.floor(dot.x)}, y: ${Math.floor(dot.y)} },`;
                             const textarea = document.createElement('textarea');
@@ -1810,6 +1824,27 @@ function update(time, delta) {
         });
     }
 
+    // Handle manual collision detection between player and cars
+    cars.forEach(car => {
+        const carBounds = new Phaser.Geom.Rectangle(
+            car.x - car.graphics.displayWidth / 2,
+            car.y - car.graphics.displayHeight / 2,
+            car.graphics.displayWidth,
+            car.graphics.displayHeight
+        );
+        const playerBounds = new Phaser.Geom.Rectangle(
+            player.x - player.body.width / 2,
+            player.y - player.body.height / 2,
+            player.body.width,
+            player.body.height
+        );
+
+        if (Phaser.Geom.Intersects.RectangleToRectangle(carBounds, playerBounds)) {
+            this.sound.play('runIntoEntityCar'); // Play car collision sound
+            this.fallDown(); // Make the player fall down
+        }
+    });
+
     // Update cars
     updateCars.call(this, delta);
 
@@ -1819,7 +1854,7 @@ function update(time, delta) {
     // display a FPS or performance metric
     if (debugMode) {
         if (!this.fpsText) {
-            this.fpsText = this.add.text(10, 40, '', {
+            this.fpsText = this.add.text(10, 50, '', {
                 font: '16px Arial',
                 fill: '#ffffff'
             }).setScrollFactor(0).setDepth(5);
@@ -1827,6 +1862,13 @@ function update(time, delta) {
         this.fpsText.setText(`FPS: ${Math.floor(this.game.loop.actualFps)}`);
     } else if (this.fpsText) {
         this.fpsText.setText(''); // Clear the text when debug mode is off
+    }
+
+    // Pause the player animation if not moving
+    if (momentum === 0 && player.sprite.anims.isPlaying) {
+        player.sprite.anims.pause();
+    } else if (momentum > 0 && !player.sprite.anims.isPlaying) {
+        player.sprite.anims.resume();
     }
 }
 
@@ -2350,6 +2392,9 @@ function updateCars(delta) {
 // Function to spawn power-ups
 function spawnPowerUp() {
     const randomType = Phaser.Utils.Array.GetRandom(powerUpTypes);
+    if(randomType.type === 'Thanos') {
+        return; // Skip spawning Thanos power-up
+    }
     const x = Phaser.Math.Between(100, this.physics.world.bounds.width - 100);
     const y = Phaser.Math.Between(100, this.physics.world.bounds.height - 100);
 
@@ -2547,6 +2592,10 @@ function handlePowerUps() {
                 case 'Batman':
                     imBatman = true;
                     nightOverlay.setDepth(1); // Ensure it appears above all other elements
+                    break;
+                case 'Thanos':
+                    // Implement Thanos power-up logic here
+                    this.endGame(false);
                     break;
                 default:
                     console.warn(`Unknown power-up type: ${powerUp.type}`);

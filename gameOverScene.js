@@ -4,6 +4,7 @@ export default class GameOverScene extends Phaser.Scene {
     }
 
     init(data) {
+        this.isCheater = data.cheater || false; // Check if the player is a cheater
         this.finalScore = data.score || 0; // Retrieve the score passed from the main game
     }
 
@@ -11,10 +12,12 @@ export default class GameOverScene extends Phaser.Scene {
         this.load.image('kyles_wife_Pixel', 'assets/kyles_wife_pixel.png'); // Load the character image
         this.load.image('kyleBackground', 'assets/galactic_quest_background.jpg'); // Load the background
         this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
+        this.load.audio('fallOver', 'assets/sounds/mixkit-player-losing-or-failing-2042.wav');
     }
 
     create() {
         // Add the background image
+        this.sound.play('fallOver'); // Play fallOver sound
         this.add.image(0, 0, 'kyleBackground').setOrigin(0, 0).setDisplaySize(this.scale.width, this.scale.height);
 
         // Add the character image anchored to the bottom right
@@ -58,18 +61,34 @@ export default class GameOverScene extends Phaser.Scene {
 
 
         // Add Game Over text
-        const gameOverText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 70, 'Game Over', {
-            font: '30px PressStart2P',
-            fill: '#ffffff',
-            shadow: {
-                offsetX: 2,
-                offsetY: 2,
-                color: '#000000',
-                blur: 0,
-                stroke: true,
-                fill: true
-            }
-        }).setOrigin(0.5);
+        if(this.isCheater) {
+            // If the player is a cheater, display a different message
+            const cheaterText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 70, 'Cheater!', {
+                font: '30px PressStart2P',
+                fill: '#ff0000', // Red color for cheater text
+                shadow: {
+                    offsetX: 2,
+                    offsetY: 2,
+                    color: '#000000',
+                    blur: 0,
+                    stroke: true,
+                    fill: true
+                }
+            }).setOrigin(0.5);
+        } else {
+            const gameOverText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 70, 'Game Over', {
+                font: '30px PressStart2P',
+                fill: '#ffffff',
+                shadow: {
+                    offsetX: 2,
+                    offsetY: 2,
+                    color: '#000000',
+                    blur: 0,
+                    stroke: true,
+                    fill: true
+                }
+            }).setOrigin(0.5);
+        }
 
         // Display the final score
         const scoreText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, `Your Score: ${this.finalScore}`, {
