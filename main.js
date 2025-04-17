@@ -1243,63 +1243,9 @@ function create() {
     // Detect if the device is mobile
     const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
 
+    // Add transparent arrow keys for mobile support
     if (isMobile) {
-        // Add touch controls for mobile support
-        this.input.on('pointerdown', (pointer) => {
-            if (!pointer.isDown) return;
-
-            // Check if the touch is on the left or right side of the screen
-            const isLeft = pointer.x < this.cameras.main.width / 2;
-            const isTop = pointer.y < this.cameras.main.height / 2;
-
-            if (isLeft && isTop) {
-                // Simulate pressing the W or Up Arrow key
-                this.cursors.up.isDown = true;
-                this.wasd.up.isDown = true;
-            } else if (isLeft && !isTop) {
-                // Simulate pressing the A or Left Arrow key
-                this.cursors.left.isDown = true;
-                this.wasd.left.isDown = true;
-            } else if (!isLeft && isTop) {
-                // Simulate pressing the D or Right Arrow key
-                this.cursors.right.isDown = true;
-                this.wasd.right.isDown = true;
-            } else if (!isLeft && !isTop) {
-                // Simulate pressing the S or Down Arrow key
-                this.cursors.down.isDown = true;
-                this.wasd.down.isDown = true;
-            }
-        });
-
-        this.input.on('pointerup', (pointer) => {
-            // Reset all simulated key presses when the touch is released
-            this.cursors.up.isDown = false;
-            this.cursors.left.isDown = false;
-            this.cursors.right.isDown = false;
-            this.cursors.down.isDown = false;
-            this.wasd.up.isDown = false;
-            this.wasd.left.isDown = false;
-            this.wasd.right.isDown = false;
-            this.wasd.down.isDown = false;
-        });
-
-        this.input.on('pointerdown', (pointer) => {
-            if (pointer.isDown) {
-                // Throw a comic when tapping
-                const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
-                const targetY = player.y + Math.sin(player.rotation) * 100;
-                throwProjectile.call(this, targetX, targetY);
-            }
-        });
-    } else {
-        // Use original keyboard and mouse controls
-        this.input.keyboard.on('keydown', (event) => {
-            // Handle keyboard input
-        });
-
-        this.input.on('pointerdown', (pointer) => {
-            // Handle mouse input
-        });
+        this.updatePopupText('This game only supports \nkeyboard and mouse. \nsorry!');
     }
 }
 
