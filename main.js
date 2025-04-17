@@ -1316,7 +1316,7 @@ function create() {
         // Add an action button for shooting projectiles
         const buttonX = this.cameras.main.width - 100; // Fixed X position for the button
         const buttonY = this.cameras.main.height - 100; // Position the button near the bottom right of the screen
-
+        
         const actionButton = this.add.circle(buttonX, buttonY, 40, 0xFFFFFF)
             .setAlpha(0.8)
             .setDepth(13)
@@ -1340,6 +1340,9 @@ function create() {
         actionButton.on('pointerup', () => {
             isActionButtonPressed = false;
         });
+
+        // Ensure joystick and action button inputs are handled independently
+        this.input.addPointer(1); // Add a second pointer for multi-touch support
     }
 }
 
