@@ -1243,9 +1243,82 @@ function create() {
     // Detect if the device is mobile
     const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
 
+    console.log(isMobile)
+
     // Add transparent arrow keys for mobile support
     if (isMobile) {
         this.updatePopupText('This game only supports \nkeyboard and mouse. \nsorry!');
+        const arrowKeySize = 50; // Size of each arrow key
+        const arrowKeyAlpha = 0.5; // Transparency level
+
+        // Create a container for the arrow keys
+        const arrowKeysContainer = this.add.container(50, this.cameras.main.height - 100).setScrollFactor(0);
+
+        // Add the up arrow key
+        const upArrow = this.add.rectangle(0, -arrowKeySize, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
+        upArrow.setInteractive();
+        upArrow.on('pointerdown', () => {
+            this.cursors.up.isDown = true;
+        });
+        upArrow.on('pointerup', () => {
+            this.cursors.up.isDown = false;
+        });
+        arrowKeysContainer.add(upArrow);
+
+        // Add the left arrow key
+        const leftArrow = this.add.rectangle(-arrowKeySize, 0, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
+        leftArrow.setInteractive();
+        leftArrow.on('pointerdown', () => {
+            this.cursors.left.isDown = true;
+        });
+        leftArrow.on('pointerup', () => {
+            this.cursors.left.isDown = false;
+        });
+        arrowKeysContainer.add(leftArrow);
+
+        // Add the right arrow key
+        const rightArrow = this.add.rectangle(arrowKeySize, 0, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
+        rightArrow.setInteractive();
+        rightArrow.on('pointerdown', () => {
+            this.cursors.right.isDown = true;
+        });
+        rightArrow.on('pointerup', () => {
+            this.cursors.right.isDown = false;
+        });
+        arrowKeysContainer.add(rightArrow);
+
+        // Add the down arrow key
+        const downArrow = this.add.rectangle(0, arrowKeySize, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
+        downArrow.setInteractive();
+        downArrow.on('pointerdown', () => {
+            this.cursors.down.isDown = true;
+        });
+        downArrow.on('pointerup', () => {
+            this.cursors.down.isDown = false;
+        });
+        arrowKeysContainer.add(downArrow);
+
+        // Create a button for the Spacebar functionality
+        const actionButtonSize = 70; // Size of the action button
+        const actionButtonAlpha = 0.5; // Transparency level
+        const actionButton = this.add.rectangle(
+            this.cameras.main.width - 70, // Position on the bottom right
+            this.cameras.main.height - 70,
+            actionButtonSize,
+            actionButtonSize,
+            0x000000,
+            actionButtonAlpha
+        ).setScrollFactor(0);
+
+        actionButton.setInteractive();
+        actionButton.on('pointerdown', () => {
+            const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
+            const targetY = player.y + Math.sin(player.rotation) * 100;
+            throwProjectile.call(this, targetX, targetY);
+        });
+        actionButton.on('pointerup', () => {
+            // No action needed on pointer up for the action button
+        });
     }
 }
 
