@@ -162,20 +162,30 @@ function setComics(value) {
 }
 
 function dumpJoyStickState() {
-    let keys = this.joyStick.createCursorKeys();
-    cursorKeys = {
-        up: {
-            isDown: keys['up'].isDown || false
-        },
-        down: {
-            isDown: keys['down'].isDown || false
-        },
-        left: {
-            isDown: keys['left'].isDown || false
-        },
-        right: {
-            isDown: keys['right'].isDown || false
+    if (player) {
+        if (this.joyStick.noKey) {
+            momentum = Math.max(momentum - glideFriction, 0); // Reduce momentum gradually when joystick is not touched
         }
+        const angle = this.joyStick.angle; // Get the angle of the joystick
+        const force = Math.max(this.joyStick.force, 50); // Get the force of the joystick
+        momentum = Math.min(momentum + (force + momentumIncrease), maxMomentum); // Increase momentum if joystick is active
+        console.log(`Angle: ${angle}, Force: ${force + momentumIncrease}, Momentum: ${momentum}`); // Log the angle, force, and momentum
+        const targetRotation = Phaser.Math.DegToRad(angle); // Convert angle to radians
+        const rotationSpeed = 0.1; // Adjust rotation speed
+        const angleDifference = Phaser.Math.Angle.Wrap(targetRotation - player.rotation);
+
+
+        // Smoothly rotate the player towards the joystick direction
+        if (Math.abs(angleDifference) > rotationSpeed) {
+            player.rotation += Math.sign(angleDifference) * rotationSpeed;
+            balanceMeter -= angleDifference * rotationSpeed * (momentum / 10); // Shift balance to the left (negative)
+        } else {
+            player.rotation = targetRotation; // Snap to the target rotation if close enough
+        }
+
+        const velocityX = Math.cos(Phaser.Math.DegToRad(angle)) * momentum;
+        const velocityY = Math.sin(Phaser.Math.DegToRad(angle)) * momentum;
+        player.body.setVelocity(velocityX, velocityY); // Set player velocity
     }
 }
 
@@ -1353,83 +1363,85 @@ function update(time, delta) {
 
     // Prevent movement if the player is off balance or in the fall down state
     const isOffBalance = balanceMeter >= balanceThresholdRight || balanceMeter <= balanceThresholdLeft;
-    if (!canMoveForward || isOffBalance) {
-        player.body.setVelocity(0, 0); // Stop movement
-        momentum = 0; // Reset momentum when off balance
-    } else {
-        const forwardPressed = this.cursors.up.isDown || this.wasd.up.isDown || (cursorKeys && cursorKeys.up.isDown);
-        const backwardPressed = this.cursors.down.isDown || this.wasd.down.isDown || (cursorKeys && cursorKeys.down.isDown);
-
-        if(goingBackward) {
-            // Reverse left and right controls when moving backward
-            if (this.cursors.left.isDown || this.wasd.left.isDown || (cursorKeys && cursorKeys.left.isDown)) {
-                player.rotation += rotationSpeed; // Right becomes left
-                balanceMeter += delta * 0.1; // Shift balance to the right (positive)
-            } else if (this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.right.isDown)) {
-                player.rotation -= rotationSpeed; // Left becomes right
-                balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
-            }
+    if(!this.isMobile) {
+        if (!canMoveForward || isOffBalance) {
+            player.body.setVelocity(0, 0); // Stop movement
+            momentum = 0; // Reset momentum when off balance
         } else {
-            // Allow turning while moving
-            if (this.cursors.left.isDown || this.wasd.left.isDown || (cursorKeys && cursorKeys.left.isDown)) {
-                player.rotation -= rotationSpeed;
-                balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
-            } else if (this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.right.isDown)) {
-                player.rotation += rotationSpeed;
-                balanceMeter += delta * 0.1; // Shift balance to the right (positive)
-            }
-        }        
+            const forwardPressed = this.cursors.up.isDown || this.wasd.up.isDown;
+            const backwardPressed = this.cursors.down.isDown || this.wasd.down.isDown;
 
-        // Handle backward movement independently of momentum
-        if (backwardPressed && !forwardPressed) {
-            // Reset forward momentum when moving backward
-            momentum = 0;
-
-            // Move backward
-            const velocityX = Math.cos(player.rotation) * -backwardSpeed;
-            const velocityY = Math.sin(player.rotation) * -backwardSpeed;
-            player.body.setVelocity(velocityX, velocityY);
-
-            goingBackward = true; // Set a flag to indicate backward movement
-        } else if (forwardPressed && !backwardPressed) {
-
-            // Apply momentum to the player's velocity
-            const velocityX = Math.cos(player.rotation) * momentum;
-            const velocityY = Math.sin(player.rotation) * momentum;
-            player.body.setVelocity(velocityX, velocityY);
-
-            // Adjust momentum based on input
-            momentum = Math.min(momentum + momentumIncrease, maxMomentum); // Increase momentum when pedaling
-
-            // Correct balance more quickly when going straight and not turning
-            if (!(this.cursors.left.isDown || this.wasd.left.isDown || this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.left.isDown) || (cursorKeys && cursorKeys.right.isDown))) {
-                if (balanceMeter > 0) {
-                    balanceMeter = Math.max(balanceMeter - delta * 0.2, 0); // Faster correction toward 0
-                } else if (balanceMeter < 0) {
-                    balanceMeter = Math.min(balanceMeter + delta * 0.2, 0); // Faster correction toward 0
+            if(goingBackward) {
+                // Reverse left and right controls when moving backward
+                if (this.cursors.left.isDown || this.wasd.left.isDown) {
+                    player.rotation += rotationSpeed; // Right becomes left
+                    balanceMeter += delta * 0.1; // Shift balance to the right (positive)
+                } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+                    player.rotation -= rotationSpeed; // Left becomes right
+                    balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
                 }
-            }
+            } else {
+                // Allow turning while moving
+                if (this.cursors.left.isDown || this.wasd.left.isDown) {
+                    player.rotation -= rotationSpeed;
+                    balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
+                } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+                    player.rotation += rotationSpeed;
+                    balanceMeter += delta * 0.1; // Shift balance to the right (positive)
+                }
+            }        
 
-            goingBackward = false; // Set a flag to indicate forward movement
-        } else {
-            // Glide and slowly reduce momentum when no movement keys are pressed
-            if (momentum > 0) {
-                momentum = Math.max(momentum - glideFriction, 0); // Reduce momentum gradually
+            // Handle backward movement independently of momentum
+            if (backwardPressed && !forwardPressed) {
+                // Reset forward momentum when moving backward
+                momentum = 0;
+
+                // Move backward
+                const velocityX = Math.cos(player.rotation) * -backwardSpeed;
+                const velocityY = Math.sin(player.rotation) * -backwardSpeed;
+                player.body.setVelocity(velocityX, velocityY);
+
+                goingBackward = true; // Set a flag to indicate backward movement
+            } else if (forwardPressed && !backwardPressed) {
+
+                // Apply momentum to the player's velocity
                 const velocityX = Math.cos(player.rotation) * momentum;
                 const velocityY = Math.sin(player.rotation) * momentum;
                 player.body.setVelocity(velocityX, velocityY);
+
+                // Adjust momentum based on input
+                momentum = Math.min(momentum + momentumIncrease, maxMomentum); // Increase momentum when pedaling
+
+                // Correct balance more quickly when going straight and not turning
+                if (!(this.cursors.left.isDown || this.wasd.left.isDown || this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.left.isDown) || (cursorKeys && cursorKeys.right.isDown))) {
+                    if (balanceMeter > 0) {
+                        balanceMeter = Math.max(balanceMeter - delta * 0.2, 0); // Faster correction toward 0
+                    } else if (balanceMeter < 0) {
+                        balanceMeter = Math.min(balanceMeter + delta * 0.2, 0); // Faster correction toward 0
+                    }
+                }
+
+                goingBackward = false; // Set a flag to indicate forward movement
             } else {
-                player.body.setVelocity(0, 0); // Stop completely when momentum reaches 0
+                // Glide and slowly reduce momentum when no movement keys are pressed
+                if (momentum > 0) {
+                    momentum = Math.max(momentum - glideFriction, 0); // Reduce momentum gradually
+                    const velocityX = Math.cos(player.rotation) * momentum;
+                    const velocityY = Math.sin(player.rotation) * momentum;
+                    player.body.setVelocity(velocityX, velocityY);
+                } else {
+                    player.body.setVelocity(0, 0); // Stop completely when momentum reaches 0
+                }
             }
         }
-    }
 
-    // Regenerate balance quickly when stopped
-    if (momentum === 0 && !(this.cursors.down.isDown || this.wasd.down.isDown || (cursorKeys && cursorKeys.down.isDown))) {
-        if (balanceMeter > 0) {
-            balanceMeter = Math.max(balanceMeter - delta * balanceRegenSpeed, 0);
-        } else if (balanceMeter < 0) {
-            balanceMeter = Math.min(balanceMeter + delta * balanceRegenSpeed, 0);
+        // Regenerate balance quickly when stopped
+        if (momentum === 0 && !(this.cursors.down.isDown || this.wasd.down.isDown || (cursorKeys && cursorKeys.down.isDown))) {
+            if (balanceMeter > 0) {
+                balanceMeter = Math.max(balanceMeter - delta * balanceRegenSpeed, 0);
+            } else if (balanceMeter < 0) {
+                balanceMeter = Math.min(balanceMeter + delta * balanceRegenSpeed, 0);
+            }
         }
     }
 
