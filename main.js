@@ -55,6 +55,8 @@ function preload() {
     this.load.audio('destinationReward', 'assets/sounds/mixkit-completion-of-a-level-2063.wav');
 
     this.load.atlas('flares', 'assets/particles/flares.png', 'assets/particles/flares.json');
+
+    this.load.plugin('rexvirtualjoystickplugin', 'joystick.js', true);
 }
 
 const maxWidth = Math.min(800, window.innerWidth);
@@ -73,7 +75,7 @@ const config = {
         }
     },
     pixelArt: true,
-    scene: [MenuScene, InstructionsScene, DialogueScene, GameOverScene, { key: 'MainScene', preload, create, update }],
+    scene: [MenuScene, InstructionsScene, DialogueScene, GameOverScene, { key: 'MainScene', preload, create, update }]
 };
 
 const game = new Phaser.Game(config);
@@ -82,7 +84,7 @@ let player;
 let numCars = 0; // Number of cars in the game
 let balanceMeter = 0; // Balance meter value
 let startingX = 9560; // Example starting X position, 9560 comic store
-let startingY = 5633; // Example starting Y position, 5841 comic store
+let startingY = 5633; // Example starting Y position, 5633 comic store
 let balanceThresholdLeft = -100; // Threshold for falling over to the left
 let balanceThresholdRight = 100; // Threshold for falling over to the right
 let projectiles; // Group for projectiles
@@ -145,6 +147,7 @@ let rewindEmitter = null;
 let bamfEmitter = null;
 let spiderManPowers = null;
 let webGraphics = null;
+let cursorKeys = null; // Declare cursorKeys globally
 
 // Add an initialization variable for the number of power-ups to spawn
 const initialPowerUps = 40; // Default number of power-ups to spawn at game start
@@ -158,13 +161,46 @@ function setComics(value) {
     }
 }
 
+function dumpJoyStickState() {
+    let keys = this.joyStick.createCursorKeys();
+    cursorKeys = {
+        up: {
+            isDown: keys['up'].isDown || false
+        },
+        down: {
+            isDown: keys['down'].isDown || false
+        },
+        left: {
+            isDown: keys['left'].isDown || false
+        },
+        right: {
+            isDown: keys['right'].isDown || false
+        }
+    }
+}
+
 // Initializes the game world, player, UI elements, and entities.
 // Sets up input handling, minimap, and collision detection.
 function create() {
+    this.dumpJoyStickState = dumpJoyStickState.bind(this);
+    // Add joystick plugin and ensure visibility
+    const baseX = 100; // Fixed X position for the joystick
+    const baseY = this.cameras.main.height - 100; // Position the joystick near the bottom of the screen
+
+    this.joyStick = this.plugins.get('rexvirtualjoystickplugin').add(this, {
+        x: baseX,
+        y: baseY,
+        radius: 50,
+        base: this.add.circle(baseX, baseY, 50, 0x888888).setAlpha(0.8).setDepth(12), // Ensure base is visible
+        thumb: this.add.circle(baseX, baseY, 25, 0xcccccc).setAlpha(0.8).setDepth(13), // Ensure thumb is visible
+        enable: true
+    }).on('update', this.dumpJoyStickState, this);
+
+    this.text = this.add.text(10, 10, '', { font: '16px Arial', fill: '#ffffff' }); // Adjusted position for text
+    this.dumpJoyStickState();
 
     // Detect if the device is mobile
     const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
-
     console.log(isMobile)
 
     // Add the background image and set it to cover the entire map
@@ -656,7 +692,7 @@ function create() {
 
         const destination = this.add.image(newX, newY, 'location_pin')
             .setScale(1.5)
-            .setDepth(50);
+            .setDepth(12);
 
         // Add a bounce animation to the location_pin
         this.tweens.add({
@@ -1262,73 +1298,6 @@ function create() {
         repeat: -1, // Repeat indefinitely
         ease: 'Sine.easeInOut'
     });
-
-    // Add a virtual joystick for mobile support
-    if (isMobile) {
-        this.updatePopupText('This game was made for \nkeyboard and mouse. \n Your experience on a \nmobile device may not \nbe optimal');
-
-        const joystickOuterRadius = 60; // Outer circle radius
-        const joystickInnerRadius = 30; // Inner circle radius
-        const joystickAlpha = 0.5; // Transparency level
-
-        // Create a container for the joystick
-        const joystickContainer = this.add.container(100, this.cameras.main.height - 150).setScrollFactor(0);
-
-        // Add the outer circle
-        const outerCircle = this.add.circle(0, 0, joystickOuterRadius, 0x000000, joystickAlpha);
-        outerCircle.setInteractive(new Phaser.Geom.Circle(0, 0, joystickOuterRadius), Phaser.Geom.Circle.Contains); // Make the outer circle interactive
-        joystickContainer.add(outerCircle);
-
-        // Add the inner circle
-        const innerCircle = this.add.circle(0, 0, joystickInnerRadius, 0xffffff, 1);
-        innerCircle.setInteractive({ draggable: true });
-        joystickContainer.add(innerCircle);
-
-        // Track the joystick movement
-        innerCircle.on('drag', (pointer, dragX, dragY) => {
-            const distance = Math.sqrt(dragX * dragX + dragY * dragY);
-            const maxDistance = joystickOuterRadius - joystickInnerRadius;
-
-            if (distance > maxDistance) {
-                const angle = Math.atan2(dragY, dragX);
-                dragX = Math.cos(angle) * maxDistance;
-                dragY = Math.sin(angle) * maxDistance;
-            }
-
-            innerCircle.setPosition(dragX, dragY);
-
-            // Normalize the drag vector to determine movement direction
-            const normalizedX = dragX / maxDistance;
-            const normalizedY = dragY / maxDistance;
-
-            this.cursors.up.isDown = normalizedY < -0.5;
-            this.cursors.down.isDown = normalizedY > 0.5;
-            this.cursors.left.isDown = normalizedX < -0.5;
-            this.cursors.right.isDown = normalizedX > 0.5;
-        });
-
-        innerCircle.on('dragend', () => {
-            innerCircle.setPosition(0, 0);
-            this.cursors.up.isDown = false;
-            this.cursors.down.isDown = false;
-            this.cursors.left.isDown = false;
-            this.cursors.right.isDown = false;
-        });
-
-        joystickContainer.setDepth(12); // Ensure it appears above other elements
-
-        // Disable cursor interactions when over the joystick
-        outerCircle.on('pointerdown', (pointer) => {
-            pointer.event.stopPropagation(); // Prevent the event from propagating to other game objects
-        });
-
-        // Disable all other input interactions when in mobile mode
-        if (isMobile) {
-            this.input.on('pointerdown', (pointer) => {
-                pointer.event.stopPropagation(); // Prevent interactions outside the joystick
-            });
-        }
-    }
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
@@ -1387,24 +1356,24 @@ function update(time, delta) {
         player.body.setVelocity(0, 0); // Stop movement
         momentum = 0; // Reset momentum when off balance
     } else {
-        const forwardPressed = this.cursors.up.isDown || this.wasd.up.isDown;
-        const backwardPressed = this.cursors.down.isDown || this.wasd.down.isDown;
+        const forwardPressed = this.cursors.up.isDown || this.wasd.up.isDown || (cursorKeys && cursorKeys.up.isDown);
+        const backwardPressed = this.cursors.down.isDown || this.wasd.down.isDown || (cursorKeys && cursorKeys.down.isDown);
 
         if(goingBackward) {
             // Reverse left and right controls when moving backward
-            if (this.cursors.left.isDown || this.wasd.left.isDown) {
+            if (this.cursors.left.isDown || this.wasd.left.isDown || (cursorKeys && cursorKeys.left.isDown)) {
                 player.rotation += rotationSpeed; // Right becomes left
                 balanceMeter += delta * 0.1; // Shift balance to the right (positive)
-            } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+            } else if (this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.right.isDown)) {
                 player.rotation -= rotationSpeed; // Left becomes right
                 balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
             }
         } else {
             // Allow turning while moving
-            if (this.cursors.left.isDown || this.wasd.left.isDown) {
+            if (this.cursors.left.isDown || this.wasd.left.isDown || (cursorKeys && cursorKeys.left.isDown)) {
                 player.rotation -= rotationSpeed;
                 balanceMeter -= delta * 0.1; // Shift balance to the left (negative)
-            } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+            } else if (this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.right.isDown)) {
                 player.rotation += rotationSpeed;
                 balanceMeter += delta * 0.1; // Shift balance to the right (positive)
             }
@@ -1432,7 +1401,7 @@ function update(time, delta) {
             momentum = Math.min(momentum + momentumIncrease, maxMomentum); // Increase momentum when pedaling
 
             // Correct balance more quickly when going straight and not turning
-            if (!(this.cursors.left.isDown || this.wasd.left.isDown || this.cursors.right.isDown || this.wasd.right.isDown)) {
+            if (!(this.cursors.left.isDown || this.wasd.left.isDown || this.cursors.right.isDown || this.wasd.right.isDown || (cursorKeys && cursorKeys.left.isDown) || (cursorKeys && cursorKeys.right.isDown))) {
                 if (balanceMeter > 0) {
                     balanceMeter = Math.max(balanceMeter - delta * 0.2, 0); // Faster correction toward 0
                 } else if (balanceMeter < 0) {
@@ -1455,7 +1424,7 @@ function update(time, delta) {
     }
 
     // Regenerate balance quickly when stopped
-    if (momentum === 0 && !(this.cursors.down.isDown || this.wasd.down.isDown)) {
+    if (momentum === 0 && !(this.cursors.down.isDown || this.wasd.down.isDown || (cursorKeys && cursorKeys.down.isDown))) {
         if (balanceMeter > 0) {
             balanceMeter = Math.max(balanceMeter - delta * balanceRegenSpeed, 0);
         } else if (balanceMeter < 0) {
