@@ -1,32 +1,9 @@
-#tv-foreground {
-    position: fixed; /* Ensure it stays on top and doesn't scroll */
-    top: 0;
-    left: 0;
-    width: 788px; /* Full width of the viewport */
-    height: 750px; /* Full height of the viewport */
-    background-image: url('./assets/tv_foreground.png'); /* Replace with your TV foreground image */
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    left: 50%;
-    transform: translate(-50%, 0%);
-    pointer-events: none; /* Allow clicks to pass through to the game */
-    z-index: 1000; /* Ensure it is above all other elements */
-}
-
-#game {
-    position: absolute; /* Ensure it does not interfere with the canvas */
-    width: 600px; /* Match the game canvas width */
-    height: 450px; /* Match the game canvas height */
-    top: 86px;
-}
-
 #scanlines {
-    position: absolute; /* Ensure it is positioned relative to the game area */
+    position: fixed; /* Cover the entire screen */
     top: 0;
     left: 0;
-    width: 100%; /* Cover the game area */
-    height: 100%; /* Cover the game area */
+    width: 100vw; /* Full width of the viewport */
+    height: 100vh; /* Full height of the viewport */
     pointer-events: none; /* Allow clicks to pass through to the game */
     z-index: 999; /* Ensure it is below the TV foreground but above the game canvas */
     background: repeating-linear-gradient(
@@ -39,3 +16,26 @@
     mix-blend-mode: multiply; /* Blend the scanlines with the game canvas */
 }
 
+#game {
+    position: relative; /* Ensure it is positioned relative to the body */
+    width: -webkit-fill-available; /* Full width of the viewport */
+    height: -webkit-fill-available; /* Full height of the viewport */
+    overflow: hidden; /* Prevent scrolling */
+    max-width: 800px; /* Limit the width to 800px */
+    max-height: 600px; /* Limit the height to 600px */
+    margin: 0 auto; /* Center the container */    
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: PressStart2P;
+    background-color: #000;
+    height: 100vh; /* Ensure the body takes up the full viewport height */
+    overflow: hidden; /* Prevent scrolling */
+    position: relative; /* Ensure child elements are positioned relative to the body */
+}

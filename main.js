@@ -57,11 +57,13 @@ function preload() {
     this.load.atlas('flares', 'assets/particles/flares.png', 'assets/particles/flares.json');
 }
 
+const maxWidth = Math.min(800, window.innerWidth);
+const maxHeight = Math.min(600, window.innerHeight);
 
 const config = {
     type: Phaser.WEBGL,
-    width: 600, // OR window.innerWidth for testing, // Set to window width // 600 is the default
-    height: 450, // OR window.innerHeight for Testing, // Set to window height // 450 is the default
+    width: maxWidth, // Match the width of the browser window
+    height: maxHeight, // Match the height of the browser window
     parent: 'game', // ID of the HTML element to attach the game
     physics: {
         default: 'arcade',
@@ -159,6 +161,12 @@ function setComics(value) {
 // Initializes the game world, player, UI elements, and entities.
 // Sets up input handling, minimap, and collision detection.
 function create() {
+
+    // Detect if the device is mobile
+    const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
+
+    console.log(isMobile)
+
     // Add the background image and set it to cover the entire map
     this.mapContainer = this.add.container(0, 0);
 
@@ -228,48 +236,58 @@ function create() {
     this.cursors = this.input.keyboard.createCursorKeys();
 
     // Add WASD keys for movementd
-    this.wasd = {
-        up: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-        down: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-        left: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-        right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
-    };
+    if(!isMobile) {
+        this.wasd = {
+            up: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+            down: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+            left: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+            right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+        };
 
-    // Add a key listener for the spacebar
-    this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        // Add a key listener for the spacebar
+        this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    // Add a key listener for the ENTER key to toggle debugMode
-    this.input.keyboard.on('keydown-ENTER', () => {
-        debugMode = !debugMode; // Toggle debugMode
-        console.log(`Debug mode: ${debugMode ? 'ON' : 'OFF'}`); // Log the current state
-        this.textContainer.setVisible(debugMode);
-        this.scoreText.setVisible(true); // Always show the score text
-    });
-
-    // Add key listeners for testing power-ups
-    const powerUpKeys = [
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SIX),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SEVEN),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT),
-        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NINE)
-    ];
-
-    powerUpKeys.forEach((key, index) => {
-        key.on('down', () => {
-            if (debugMode) { // Only allow during debug mode
-                const powerUp = powerUpTypes[index];
-                if (powerUp) {
-                    enablePowerUp.call(this, powerUp); // Call the enablePowerUp function with the power-up type
-                    cheater = true;
-                }
-            }
+        // Add a key listener for the ENTER key to toggle debugMode
+        this.input.keyboard.on('keydown-ENTER', () => {
+            debugMode = !debugMode; // Toggle debugMode
+            console.log(`Debug mode: ${debugMode ? 'ON' : 'OFF'}`); // Log the current state
+            this.textContainer.setVisible(debugMode);
+            this.scoreText.setVisible(true); // Always show the score text
         });
-    });
+
+        // Add key listeners for testing power-ups
+        const powerUpKeys = [
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SIX),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SEVEN),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT),
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NINE)
+        ];
+
+        powerUpKeys.forEach((key, index) => {
+            key.on('down', () => {
+                if (debugMode) { // Only allow during debug mode
+                    const powerUp = powerUpTypes[index];
+                    if (powerUp) {
+                        enablePowerUp.call(this, powerUp); // Call the enablePowerUp function with the power-up type
+                        cheater = true;
+                    }
+                }
+            });
+        });
+    } else {
+        this.wasd = this.wasd || {
+            up: { isDown: false },
+            down: { isDown: false },
+            left: { isDown: false },
+            right: { isDown: false }
+        };
+        this.spacebar = { isDown: false }; // Create a fake empty spacebar for mobile
+    }
 
     // Set the player's depth to ensure it renders above roads, intersections, and grassy areas
     player.setDepth(1);
@@ -362,122 +380,127 @@ function create() {
     // Create a group for projectiles
     projectiles = this.physics.add.group();
 
-    // Create a cursor as a small empty circle with a red border
-    cursorIcon = this.add.graphics();
-    cursorIcon.lineStyle(2, 0xff0000, 0.8); // Thin red border with 80% opacity
-    cursorIcon.strokeCircle(0, 0, 10); // Circle with radius 10
-    cursorIcon.setVisible(false); // Initially hidden
+    
 
-    // Add a tween for the default pulsating effect
-    cursorTween = this.tweens.add({
-        targets: cursorIcon,
-        scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
-        duration: 800, // Duration of the pulsation
-        yoyo: true, // Reverse the tween to create a pulsating effect
-        repeat: -1, // Repeat indefinitely
-        ease: 'Sine.easeInOut'
-    });
+    if(!this.isMobile) {
+        // Create a cursor as a small empty circle with a red border
+        cursorIcon = this.add.graphics();
+        cursorIcon.lineStyle(2, 0xff0000, 0.8); // Thin red border with 80% opacity
+        cursorIcon.strokeCircle(0, 0, 10); // Circle with radius 10
+        cursorIcon.setVisible(false); // Initially hidden
 
-    // Enable mouse input and track movement
-    this.input.on('pointermove', (pointer) => {
-        cursorIcon.setPosition(pointer.worldX, pointer.worldY).setVisible(true);
+        // Add a tween for the default pulsating effect
+        cursorTween = this.tweens.add({
+            targets: cursorIcon,
+            scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
+            duration: 800, // Duration of the pulsation
+            yoyo: true, // Reverse the tween to create a pulsating effect
+            repeat: -1, // Repeat indefinitely
+            ease: 'Sine.easeInOut'
+        });
+        // Enable mouse input and track movement
+        this.input.on('pointermove', (pointer) => {
+            cursorIcon.setPosition(pointer.worldX, pointer.worldY).setVisible(true);
 
-        // Update the cursor coordinates text
-        this.cursorCoordsText.setText(`Cursor: X: ${Math.floor(pointer.worldX)}, Y: ${Math.floor(pointer.worldY)}`);
+            // Update the cursor coordinates text
+            this.cursorCoordsText.setText(`Cursor: X: ${Math.floor(pointer.worldX)}, Y: ${Math.floor(pointer.worldY)}`);
 
-        // Reset the mouse movement timer
-        if (mouseMoveTimer) {
-            clearTimeout(mouseMoveTimer);
-        }
-        mouseMoveTimer = setTimeout(() => {
-            cursorIcon.setVisible(false); // Hide the cursor after inactivity
-        }, mouseHideDelay);
-
-        // Check if the cursor is over an object
-        const hoveredObject = entities.find(entity => {
-            if (entity.polygon) {
-                return Phaser.Geom.Polygon.Contains(entity.polygon, pointer.worldX, pointer.worldY);
+            // Reset the mouse movement timer
+            if (mouseMoveTimer) {
+                clearTimeout(mouseMoveTimer);
             }
-            return false;
+            mouseMoveTimer = setTimeout(() => {
+                cursorIcon.setVisible(false); // Hide the cursor after inactivity
+            }, mouseHideDelay);
+
+            // Check if the cursor is over an object
+            const hoveredObject = entities.find(entity => {
+                if (entity.polygon) {
+                    return Phaser.Geom.Polygon.Contains(entity.polygon, pointer.worldX, pointer.worldY);
+                }
+                return false;
+            });
+
+            // Check if the cursor is over an object that needs comics
+            const hoveredComicObject = entities.find(entity => {
+                if (entity.polygon && entity.needsComic) {
+                    return Phaser.Geom.Polygon.Contains(entity.polygon, pointer.worldX, pointer.worldY);
+                }
+                return false;
+            });
+
+            if (hoveredComicObject) {
+                // Change cursor to green, make it bigger, and pulse faster
+                cursorIcon.clear();
+                cursorIcon.lineStyle(2, 0x00ff00, 0.8); // Green border with 80% opacity
+                cursorIcon.strokeCircle(0, 0, 12); // Slightly larger circle
+
+                // Update the tween for faster pulsation
+                cursorTween.stop();
+                cursorTween = this.tweens.add({
+                    targets: cursorIcon,
+                    scale: { from: 1, to: 1.3 }, // Pulsate between normal size and 1.3x size
+                    duration: 400, // Faster pulsation
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
+            } else {
+                // Reset cursor to red, normal size, and default pulsation
+                cursorIcon.clear();
+                cursorIcon.lineStyle(2, 0xff0000, 0.8); // Red border with 80% opacity
+                cursorIcon.strokeCircle(0, 0, 10); // Default circle size
+
+                // Update the tween for default pulsation
+                cursorTween.stop();
+                cursorTween = this.tweens.add({
+                    targets: cursorIcon,
+                    scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
+                    duration: 800, // Default pulsation speed
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
+            }
         });
 
-        // Check if the cursor is over an object that needs comics
-        const hoveredComicObject = entities.find(entity => {
-            if (entity.polygon && entity.needsComic) {
-                return Phaser.Geom.Polygon.Contains(entity.polygon, pointer.worldX, pointer.worldY);
+        // Copy cursor coordinates to clipboard on mouse click
+        this.input.on('pointerdown', (pointer) => {
+            const coordinates = `{ x: ${Math.floor(pointer.worldX)}, y: ${Math.floor(pointer.worldY)} }`;
+
+            if (this.input.keyboard.checkDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ALT))) {
+                // Add coordinates to the array if ALT is pressed
+                coordinateArray.push(coordinates);
+                console.log(`Added to array: ${coordinates}`);
+            } else {
+                if(!this.isMobile) {
+                    // Throw a projectile on mouse click
+                    throwProjectile.call(this, pointer.worldX, pointer.worldY); // Bind `this` to the scene
+                }
             }
-            return false;
         });
 
-        if (hoveredComicObject) {
-            // Change cursor to green, make it bigger, and pulse faster
-            cursorIcon.clear();
-            cursorIcon.lineStyle(2, 0x00ff00, 0.8); // Green border with 80% opacity
-            cursorIcon.strokeCircle(0, 0, 12); // Slightly larger circle
+        // Copy the array to the clipboard when ALT is released
+        this.input.keyboard.on('keyup-ALT', () => {
+            if (coordinateArray.length > 0) {
+                const arrayString = '{ type: "", vertices: [' + coordinateArray.join() + '] },';
+                const textarea = document.createElement('textarea');
+                textarea.value = arrayString;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    console.log(`Copied array to clipboard:\n${arrayString}`);
+                } catch (err) {
+                    console.error('Failed to copy array to clipboard', err);
+                }
+                document.body.removeChild(textarea);
 
-            // Update the tween for faster pulsation
-            cursorTween.stop();
-            cursorTween = this.tweens.add({
-                targets: cursorIcon,
-                scale: { from: 1, to: 1.3 }, // Pulsate between normal size and 1.3x size
-                duration: 400, // Faster pulsation
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-        } else {
-            // Reset cursor to red, normal size, and default pulsation
-            cursorIcon.clear();
-            cursorIcon.lineStyle(2, 0xff0000, 0.8); // Red border with 80% opacity
-            cursorIcon.strokeCircle(0, 0, 10); // Default circle size
-
-            // Update the tween for default pulsation
-            cursorTween.stop();
-            cursorTween = this.tweens.add({
-                targets: cursorIcon,
-                scale: { from: 1, to: 1.2 }, // Pulsate between normal size and 1.2x size
-                duration: 800, // Default pulsation speed
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-        }
-    });
-
-    // Copy cursor coordinates to clipboard on mouse click
-    this.input.on('pointerdown', (pointer) => {
-        const coordinates = `{ x: ${Math.floor(pointer.worldX)}, y: ${Math.floor(pointer.worldY)} }`;
-
-        if (this.input.keyboard.checkDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ALT))) {
-            // Add coordinates to the array if ALT is pressed
-            coordinateArray.push(coordinates);
-            console.log(`Added to array: ${coordinates}`);
-        } else {
-            // Throw a projectile on mouse click
-            throwProjectile.call(this, pointer.worldX, pointer.worldY); // Bind `this` to the scene
-        }
-    });
-
-    // Copy the array to the clipboard when ALT is released
-    this.input.keyboard.on('keyup-ALT', () => {
-        if (coordinateArray.length > 0) {
-            const arrayString = '{ type: "", vertices: [' + coordinateArray.join() + '] },';
-            const textarea = document.createElement('textarea');
-            textarea.value = arrayString;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                console.log(`Copied array to clipboard:\n${arrayString}`);
-            } catch (err) {
-                console.error('Failed to copy array to clipboard', err);
+                // Clear the array after copying
+                coordinateArray = [];
             }
-            document.body.removeChild(textarea);
-
-            // Clear the array after copying
-            coordinateArray = [];
-        }
-    });
+        });
+    }
 
     // Add multiple refill zones
     const refillZoneCoordinates = [
@@ -1240,85 +1263,71 @@ function create() {
         ease: 'Sine.easeInOut'
     });
 
-    // Detect if the device is mobile
-    const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
-
-    console.log(isMobile)
-
-    // Add transparent arrow keys for mobile support
+    // Add a virtual joystick for mobile support
     if (isMobile) {
-        this.updatePopupText('This game only supports \nkeyboard and mouse. \nsorry!');
-        const arrowKeySize = 50; // Size of each arrow key
-        const arrowKeyAlpha = 0.5; // Transparency level
+        this.updatePopupText('This game was made for \nkeyboard and mouse. \n Your experience on a \nmobile device may not \nbe optimal');
 
-        // Create a container for the arrow keys
-        const arrowKeysContainer = this.add.container(50, this.cameras.main.height - 100).setScrollFactor(0);
+        const joystickOuterRadius = 60; // Outer circle radius
+        const joystickInnerRadius = 30; // Inner circle radius
+        const joystickAlpha = 0.5; // Transparency level
 
-        // Add the up arrow key
-        const upArrow = this.add.rectangle(0, -arrowKeySize, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
-        upArrow.setInteractive();
-        upArrow.on('pointerdown', () => {
-            this.cursors.up.isDown = true;
+        // Create a container for the joystick
+        const joystickContainer = this.add.container(100, this.cameras.main.height - 150).setScrollFactor(0);
+
+        // Add the outer circle
+        const outerCircle = this.add.circle(0, 0, joystickOuterRadius, 0x000000, joystickAlpha);
+        outerCircle.setInteractive(new Phaser.Geom.Circle(0, 0, joystickOuterRadius), Phaser.Geom.Circle.Contains); // Make the outer circle interactive
+        joystickContainer.add(outerCircle);
+
+        // Add the inner circle
+        const innerCircle = this.add.circle(0, 0, joystickInnerRadius, 0xffffff, 1);
+        innerCircle.setInteractive({ draggable: true });
+        joystickContainer.add(innerCircle);
+
+        // Track the joystick movement
+        innerCircle.on('drag', (pointer, dragX, dragY) => {
+            const distance = Math.sqrt(dragX * dragX + dragY * dragY);
+            const maxDistance = joystickOuterRadius - joystickInnerRadius;
+
+            if (distance > maxDistance) {
+                const angle = Math.atan2(dragY, dragX);
+                dragX = Math.cos(angle) * maxDistance;
+                dragY = Math.sin(angle) * maxDistance;
+            }
+
+            innerCircle.setPosition(dragX, dragY);
+
+            // Normalize the drag vector to determine movement direction
+            const normalizedX = dragX / maxDistance;
+            const normalizedY = dragY / maxDistance;
+
+            this.cursors.up.isDown = normalizedY < -0.5;
+            this.cursors.down.isDown = normalizedY > 0.5;
+            this.cursors.left.isDown = normalizedX < -0.5;
+            this.cursors.right.isDown = normalizedX > 0.5;
         });
-        upArrow.on('pointerup', () => {
+
+        innerCircle.on('dragend', () => {
+            innerCircle.setPosition(0, 0);
             this.cursors.up.isDown = false;
-        });
-        arrowKeysContainer.add(upArrow);
-
-        // Add the left arrow key
-        const leftArrow = this.add.rectangle(-arrowKeySize, 0, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
-        leftArrow.setInteractive();
-        leftArrow.on('pointerdown', () => {
-            this.cursors.left.isDown = true;
-        });
-        leftArrow.on('pointerup', () => {
+            this.cursors.down.isDown = false;
             this.cursors.left.isDown = false;
-        });
-        arrowKeysContainer.add(leftArrow);
-
-        // Add the right arrow key
-        const rightArrow = this.add.rectangle(arrowKeySize, 0, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
-        rightArrow.setInteractive();
-        rightArrow.on('pointerdown', () => {
-            this.cursors.right.isDown = true;
-        });
-        rightArrow.on('pointerup', () => {
             this.cursors.right.isDown = false;
         });
-        arrowKeysContainer.add(rightArrow);
 
-        // Add the down arrow key
-        const downArrow = this.add.rectangle(0, arrowKeySize, arrowKeySize, arrowKeySize, 0x000000, arrowKeyAlpha);
-        downArrow.setInteractive();
-        downArrow.on('pointerdown', () => {
-            this.cursors.down.isDown = true;
-        });
-        downArrow.on('pointerup', () => {
-            this.cursors.down.isDown = false;
-        });
-        arrowKeysContainer.add(downArrow);
+        joystickContainer.setDepth(12); // Ensure it appears above other elements
 
-        // Create a button for the Spacebar functionality
-        const actionButtonSize = 70; // Size of the action button
-        const actionButtonAlpha = 0.5; // Transparency level
-        const actionButton = this.add.rectangle(
-            this.cameras.main.width - 70, // Position on the bottom right
-            this.cameras.main.height - 70,
-            actionButtonSize,
-            actionButtonSize,
-            0x000000,
-            actionButtonAlpha
-        ).setScrollFactor(0);
+        // Disable cursor interactions when over the joystick
+        outerCircle.on('pointerdown', (pointer) => {
+            pointer.event.stopPropagation(); // Prevent the event from propagating to other game objects
+        });
 
-        actionButton.setInteractive();
-        actionButton.on('pointerdown', () => {
-            const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
-            const targetY = player.y + Math.sin(player.rotation) * 100;
-            throwProjectile.call(this, targetX, targetY);
-        });
-        actionButton.on('pointerup', () => {
-            // No action needed on pointer up for the action button
-        });
+        // Disable all other input interactions when in mobile mode
+        if (isMobile) {
+            this.input.on('pointerdown', (pointer) => {
+                pointer.event.stopPropagation(); // Prevent interactions outside the joystick
+            });
+        }
     }
 }
 
@@ -1466,7 +1475,7 @@ function update(time, delta) {
     this.coordsText.setText(`X: ${Math.floor(player.x)}, Y: ${Math.floor(player.y)}`);
 
     // Update the cursor icon position
-    if (cursorIcon.visible) {
+    if (cursorIcon.visible && !this.isMobile) {
         cursorIcon.setPosition(this.input.activePointer.worldX, this.input.activePointer.worldY);
     }
 
@@ -1492,10 +1501,20 @@ function update(time, delta) {
     }
 
     // Check if the spacebar is pressed to shoot a projectile
-    if (Phaser.Input.Keyboard.JustDown(this.spacebar)) {
-        const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
-        const targetY = player.y + Math.sin(player.rotation) * 100;
-        throwProjectile.call(this, targetX, targetY);
+    if(this.isMobile) {
+        // Use the action button for mobile
+        if (this.input.activePointer.isDown) {
+            const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
+            const targetY = player.y + Math.sin(player.rotation) * 100;
+            throwProjectile.call(this, targetX, targetY);
+        }
+    } else {
+        // Use the spacebar for desktop
+        if (this.spacebar.isDown) {
+            const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
+            const targetY = player.y + Math.sin(player.rotation) * 100;
+            throwProjectile.call(this, targetX, targetY);
+        }
     }
 
     // Handle manual collision detection with entities
