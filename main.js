@@ -182,26 +182,27 @@ function dumpJoyStickState() {
 // Initializes the game world, player, UI elements, and entities.
 // Sets up input handling, minimap, and collision detection.
 function create() {
+    // Detect if the device is mobile
+    const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
+    console.log(isMobile)
+    
     this.dumpJoyStickState = dumpJoyStickState.bind(this);
     // Add joystick plugin and ensure visibility
     const baseX = 100; // Fixed X position for the joystick
     const baseY = this.cameras.main.height - 100; // Position the joystick near the bottom of the screen
 
-    this.joyStick = this.plugins.get('rexvirtualjoystickplugin').add(this, {
-        x: baseX,
-        y: baseY,
-        radius: 50,
-        base: this.add.circle(baseX, baseY, 50, 0x888888).setAlpha(0.8).setDepth(12), // Ensure base is visible
-        thumb: this.add.circle(baseX, baseY, 25, 0xcccccc).setAlpha(0.8).setDepth(13), // Ensure thumb is visible
-        enable: true
-    }).on('update', this.dumpJoyStickState, this);
+    if(isMobile) {
+        this.joyStick = this.plugins.get('rexvirtualjoystickplugin').add(this, {
+            x: baseX,
+            y: baseY,
+            radius: 50,
+            base: this.add.circle(baseX, baseY, 50, 0x888888).setAlpha(0.8).setDepth(12), // Ensure base is visible
+            thumb: this.add.circle(baseX, baseY, 25, 0xcccccc).setAlpha(0.8).setDepth(13), // Ensure thumb is visible
+            enable: true
+        }).on('update', this.dumpJoyStickState, this);
 
-    this.text = this.add.text(10, 10, '', { font: '16px Arial', fill: '#ffffff' }); // Adjusted position for text
-    this.dumpJoyStickState();
-
-    // Detect if the device is mobile
-    const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
-    console.log(isMobile)
+        this.dumpJoyStickState();
+    }
 
     // Add the background image and set it to cover the entire map
     this.mapContainer = this.add.container(0, 0);

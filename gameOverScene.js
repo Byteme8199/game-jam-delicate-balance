@@ -29,7 +29,7 @@ export default class GameOverScene extends Phaser.Scene {
         const bubbleWidth = this.scale.width * 0.45;
         const bubbleHeight = 210;
         const bubbleX = this.scale.width * 0.1;
-        const bubbleY = this.scale.height - bubbleHeight - 200;
+        const bubbleY = this.scale.height / 4 - bubbleHeight ;
 
         const bubble = this.add.graphics();
         bubble.fillStyle(0xffffff, 1); // White background for the bubble
