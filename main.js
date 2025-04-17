@@ -42,7 +42,7 @@ function preload() {
 
     this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
     this.load.audio('runIntoEntityCar', 'assets/sounds/mixkit-explainer-video-game-alert-sweep-236.wav');
-    this.load.audio('backgroundMusic', 'assets/sounds/mixkit-game-level-music-689.wav');
+    this.load.audio('backgroundMusic', 'assets/sounds/overworld-melody-199744.mp3');
     this.load.audio('runIntoEntityBuilding', 'assets/sounds/mixkit-mechanical-crate-pick-up-3154.wav');
     this.load.audio('throwComic', 'assets/sounds/mixkit-player-jumping-in-a-video-game-2043.wav');
     this.load.audio('fallOver', 'assets/sounds/mixkit-player-losing-or-failing-2042.wav');
@@ -52,6 +52,7 @@ function preload() {
     this.load.audio('outOfAmmo', 'assets/sounds/mixkit-video-game-retro-click-237.wav');
     this.load.audio('gameOver', 'assets/sounds/mixkit-winning-a-coin-video-game-2069.wav');
     this.load.audio('thud', 'assets/sounds/mixkit-game-ball-tap-2073.wav');
+    this.load.audio('destinationReward', 'assets/sounds/mixkit-completion-of-a-level-2063.wav');
 
     this.load.atlas('flares', 'assets/particles/flares.png', 'assets/particles/flares.json');
 }
@@ -1313,7 +1314,7 @@ function update(time, delta) {
         let lastGhostTime = 0;
 
         if (momentum > maxMomentum * 0.7 && time - lastGhostTime >= ghostInterval) {
-            const ghost = this.add.sprite(player.x, player.y, 'player').setTint(0xffff00);
+            const ghost = this.add.sprite(player.x, player.y, 'player1').setTint(0xffff00);
             ghost.setAlpha(0.2); // Make the ghost semi-transparent
             ghost.setRotation(player.rotation); // Match the player's rotation
             ghostTrail.add(ghost);
@@ -1853,6 +1854,7 @@ function update(time, delta) {
 
             // Update the popup text when the player touches the destination
             this.updatePopupText('Destination Reached!');
+            this.sound.play('destinationReward'); // Play a sound for reaching the destination
         }
     }
 
@@ -1875,7 +1877,7 @@ function update(time, delta) {
             if (Phaser.Geom.Intersects.CircleToRectangle(destinationBounds, projectileBounds)) {
                 // Handle scoring logic when a projectile hits the destination
                 this.updatePopupText('Destination Hit!');
-                this.sound.play('comicReceive'); // Play a sound for hitting the destination
+                this.sound.play('destinationReward'); // Play a sound for hitting the destination
                 score += 20; // Award points for hitting the destination
                 this.scoreText.setText(`Score: ${score}`); // Update the score display
 
