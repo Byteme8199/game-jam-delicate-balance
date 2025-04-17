@@ -1325,8 +1325,10 @@ function create() {
 
         // Handle the action button press
         let isActionButtonPressed = false;
-
-        actionButton.on('pointerdown', () => {
+        
+        actionButton.on('pointerdown', (pointer) => {
+            // Prevent normal click/cursor click action when the action button is pressed
+            pointer.event.stopPropagation();
             if (!isActionButtonPressed) {
             isActionButtonPressed = true;
             const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
