@@ -1309,6 +1309,36 @@ function create() {
         repeat: -1, // Repeat indefinitely
         ease: 'Sine.easeInOut'
     });
+
+    if (isMobile) {
+        // ...existing joystick setup code...
+
+        // Add an action button for shooting projectiles
+        const buttonX = this.cameras.main.width - 100; // Fixed X position for the button
+        const buttonY = this.cameras.main.height - 100; // Position the button near the bottom right of the screen
+
+        const actionButton = this.add.circle(buttonX, buttonY, 40, 0xFFFFFF)
+            .setAlpha(0.8)
+            .setDepth(13)
+            .setInteractive()
+        actionButton.setScrollFactor(0); // Ensure the button stays fixed on the screen
+
+        // Handle the action button press
+        let isActionButtonPressed = false;
+
+        actionButton.on('pointerdown', () => {
+            if (!isActionButtonPressed) {
+            isActionButtonPressed = true;
+            const targetX = player.x + Math.cos(player.rotation) * 100; // Target in front of the player
+            const targetY = player.y + Math.sin(player.rotation) * 100;
+            throwProjectile.call(this, targetX, targetY);
+            }
+        });
+
+        actionButton.on('pointerup', () => {
+            isActionButtonPressed = false;
+        });
+    }
 }
 
 // Updates the game state every frame, including player movement, balance, and collisions.
