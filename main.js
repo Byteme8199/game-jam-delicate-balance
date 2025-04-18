@@ -520,7 +520,7 @@ function create() {
                 coordinateArray.push(coordinates);
                 console.log(`Added to array: ${coordinates}`);
             } else {
-                if(!this.isMobile) {
+                if(!isMobile) {
                     // Throw a projectile on mouse click
                     throwProjectile.call(this, pointer.worldX, pointer.worldY); // Bind `this` to the scene
                 }
