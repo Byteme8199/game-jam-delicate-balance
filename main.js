@@ -42,7 +42,7 @@ function preload() {
 
     this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
     this.load.audio('runIntoEntityCar', 'assets/sounds/mixkit-explainer-video-game-alert-sweep-236.wav');
-    this.load.audio('backgroundMusic', 'assets/sounds/overworld-melody-199744.mp3');
+    this.load.audio('backgroundMusic', 'assets/sounds/handlebars, wind in hair.mp3');
     this.load.audio('runIntoEntityBuilding', 'assets/sounds/mixkit-mechanical-crate-pick-up-3154.wav');
     this.load.audio('throwComic', 'assets/sounds/mixkit-player-jumping-in-a-video-game-2043.wav');
     this.load.audio('fallOver', 'assets/sounds/mixkit-player-losing-or-failing-2042.wav');
