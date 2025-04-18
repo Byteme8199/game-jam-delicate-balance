@@ -1745,6 +1745,11 @@ function update(time, delta) {
     // Handle manual collision detection between projectiles and people
     projectiles.getChildren().forEach(projectile => {
         people.forEach(person => {
+            // Skip collision detection for persons who already have a comic
+            if (person.hasComic) {
+                return;
+            }
+
             const projectileBounds = new Phaser.Geom.Rectangle(
                 projectile.x - projectile.displayWidth / 2,
                 projectile.y - projectile.displayHeight / 2,
@@ -1802,6 +1807,11 @@ function update(time, delta) {
 
     // Handle manual collision detection between player and people
     people.forEach(person => {
+        // Skip collision detection for persons who already have a comic
+        if (person.hasComic) {
+            return;
+        }
+
         // Update collision logic to respect `isIntangible`
         if (isIntangible) {
             return;
