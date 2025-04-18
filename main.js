@@ -150,7 +150,7 @@ let webGraphics = null;
 let cursorKeys = null; // Declare cursorKeys globally
 
 // Add an initialization variable for the number of power-ups to spawn
-const initialPowerUps = 40; // Default number of power-ups to spawn at game start
+const initialPowerUps = 60; // Default number of power-ups to spawn at game start
 
 // Sets the number of comics the player has, ensuring it stays within valid bounds.
 // Updates the comic count display and inventory UI.
