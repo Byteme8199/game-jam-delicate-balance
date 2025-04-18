@@ -169,7 +169,7 @@ function dumpJoyStickState() {
         const angle = this.joyStick.angle; // Get the angle of the joystick
         const force = Math.max(this.joyStick.force, 50); // Get the force of the joystick
         momentum = Math.min(momentum + (force + momentumIncrease), maxMomentum); // Increase momentum if joystick is active
-        console.log(`Angle: ${angle}, Force: ${force + momentumIncrease}, Momentum: ${momentum}`); // Log the angle, force, and momentum
+        // console.log(`Angle: ${angle}, Force: ${force + momentumIncrease}, Momentum: ${momentum}`); // Log the angle, force, and momentum
         const targetRotation = Phaser.Math.DegToRad(angle); // Convert angle to radians
         const rotationSpeed = 0.1; // Adjust rotation speed
         const angleDifference = Phaser.Math.Angle.Wrap(targetRotation - player.rotation);
@@ -194,7 +194,7 @@ function dumpJoyStickState() {
 function create() {
     // Detect if the device is mobile
     const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS;
-    console.log(isMobile)
+    // console.log(isMobile)
     
     this.dumpJoyStickState = dumpJoyStickState.bind(this);
     // Add joystick plugin and ensure visibility
@@ -1058,6 +1058,8 @@ function create() {
     // Initial update of the inventory
     this.updateComicInventory();
 
+    // Stop all music that was previously playing from other scenes
+    this.sound.stopAll();
     // Add background music and play it in a loop
     const backgroundMusic = this.sound.add('backgroundMusic', { loop: true });
     backgroundMusic.play();

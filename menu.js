@@ -7,9 +7,12 @@ export default class MenuScene extends Phaser.Scene {
         this.load.image('menuBackground', 'assets/menuBackground.png'); // Load the menu background image
         this.load.audio('pressStart', 'assets/sounds/mixkit-bonus-earned-in-video-game-2058.wav');
         this.load.audio('select', 'assets/sounds/mixkit-player-jumping-in-a-video-game-2043.wav');
+        this.load.audio('chillMusic', 'assets/sounds/trainingwheels.mp3');
     }
 
     create() {
+        const backgroundMusic = this.sound.add('chillMusic', { loop: true, volume: 0.5 }); // Ensure volume is set
+        backgroundMusic.play(); // Play the background music
         // Add the background image
         this.add.image(0, 0, 'menuBackground').setOrigin(0, 0).setDisplaySize(this.scale.width, this.scale.height);
 
